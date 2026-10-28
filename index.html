@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>De la antena al streaming · Guion con audio</title>
+<style>
+  :root{
+    --bg:#0d1014; --panel:#151a21; --panel2:#1b222c; --line:#232c38;
+    --text:#e6ebf2; --muted:#8b9bb0;
+    --andrea:#38d6c4; --iliana:#c07bf5; --ambas:#ffb454;
+    --ok:#3ddc84; --danger:#ff6b6b; --accent:#4da3ff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    line-height:1.5;
+  }
+
+  /* ---------- Barra superior ---------- */
+  .toolbar{
+    position:sticky; top:0; z-index:50;
+    display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center;
+    padding:12px 20px; background:rgba(13,16,20,.94);
+    border-bottom:1px solid var(--line); backdrop-filter:blur(8px);
+  }
+  .toolbar-info strong{display:block; font-size:15px; letter-spacing:.3px}
+  .toolbar-info .sub{font-size:12px; color:var(--muted)}
+  .toolbar-stats{font-size:12px; color:var(--muted); margin-left:auto}
+  .toolbar-actions{display:flex; gap:8px; flex-wrap:wrap}
+
+  .btn{
+    font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    border-radius:9px; padding:9px 14px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--text); transition:.15s;
+    white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){background:#28323f; border-color:#3a4757}
+  .btn:disabled{opacity:.38; cursor:not-allowed}
+  .btn-primary{background:linear-gradient(135deg,#2f8fff,#6f5bff); border:none; color:#fff}
+  .btn-primary:hover:not(:disabled){filter:brightness(1.12)}
+  .btn-ghost{background:transparent; color:var(--muted)}
+  .btn-ghost:hover:not(:disabled){color:var(--danger); border-color:var(--danger)}
+
+  .progress{height:3px; background:var(--line); position:sticky; top:63px; z-index:49; display:none}
+  .progress.on{display:block}
+  .progress-bar{height:100%; width:0; background:linear-gradient(90deg,#2f8fff,#6f5bff); transition:width .2s}
+
+  /* ---------- Secciones ---------- */
+  main{max-width:1180px; margin:0 auto; padding:26px 18px 80px}
+  .slide{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:16px; margin-bottom:22px; overflow:hidden;
+  }
+  .slide-head{
+    display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between;
+    align-items:center; padding:16px 20px;
+    background:linear-gradient(180deg,#1a212b,#151a21);
+    border-bottom:1px solid var(--line);
+  }
+  .slide-tag{
+    display:inline-block; font-size:11px; font-weight:700; letter-spacing:1.2px;
+    text-transform:uppercase; color:var(--accent);
+  }
+  .slide-nota{margin:4px 0 0; font-size:12.5px; color:var(--muted); font-style:italic}
+  .slide-actions{display:flex; align-items:center; gap:10px}
+  .slide-status{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .slide-status.full{color:var(--ok)}
+
+  /* ---------- Líneas ---------- */
+  .lines{padding:6px 0}
+  .line{
+    display:grid; grid-template-columns:96px 1fr 290px;
+    gap:14px; align-items:start;
+    padding:12px 20px; border-bottom:1px solid rgba(35,44,56,.55);
+  }
+  .line:last-child{border-bottom:none}
+  .line.loaded{background:rgba(61,220,132,.035)}
+
+  .who{
+    font-size:11px; font-weight:800; letter-spacing:1px;
+    padding-top:4px; text-transform:uppercase;
+  }
+  .line-andrea .who{color:var(--andrea)}
+  .line-iliana .who{color:var(--iliana)}
+  .line-ambas  .who{color:var(--ambas)}
+
+  .what{font-size:15px; padding-top:1px}
+
+  .audio-cell{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .btn-file{
+    font-size:12px; font-weight:600; padding:7px 11px; border-radius:8px;
+    border:1px dashed #3a4757; background:transparent; color:var(--muted);
+    cursor:pointer; white-space:nowrap; transition:.15s;
+  }
+  .btn-file:hover{color:var(--text); border-color:var(--accent); background:rgba(77,163,255,.08)}
+  .loaded .btn-file{border-style:solid; color:var(--ok); border-color:rgba(61,220,132,.5)}
+
+  .file-info{font-size:11.5px; color:var(--muted); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .dur{font-size:11.5px; color:var(--ok); font-variant-numeric:tabular-nums}
+  .err{font-size:11.5px; color:var(--danger)}
+
+  .btn-icon{
+    width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
+    background:var(--panel2); color:var(--text); cursor:pointer;
+    display:grid; place-items:center; font-size:11px; padding:0; transition:.15s;
+  }
+  .btn-icon:hover{background:#28323f}
+  .btn-icon.del:hover{color:var(--danger); border-color:var(--danger)}
+
+  .nota{
+    padding:10px 20px; font-size:13px; font-style:italic; color:#6f7f94;
+    text-align:center; border-bottom:1px solid rgba(35,44,56,.55);
+    background:rgba(255,255,255,.012);
+  }
+
+  footer{max-width:1180px; margin:0 auto; padding:0 18px 50px; font-size:12px; color:#5e6d80}
+
+  @media (max-width:860px){
+    .line{grid-template-columns:1fr; gap:8px; padding:14px 16px}
+    .who{padding-top:0}
+    .audio-cell{margin-top:2px}
+    .toolbar-stats{margin-left:0; width:100%; order:3}
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="toolbar-info">
+    <strong>🎙️ Frecuencia Abierta</strong>
+    <span class="sub">De la antena al streaming</span>
+  </div>
+  <div class="toolbar-stats" id="stats">0 de 0 líneas con audio</div>
+  <div class="toolbar-actions">
+    <button id="btn-episodio" class="btn btn-primary">⬇ Descargar episodio completo</button>
+    <button id="btn-limpiar" class="btn btn-ghost">🗑 Borrar todo</button>
+  </div>
+</div>
+<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+
+<main id="guion"></main>
+
+<footer>
+  El audio se une en formato WAV (sin pérdida). Los archivos que cargues quedan guardados en este navegador,
+  así que puedes cerrar la página y continuar después en el mismo equipo.
+</footer>
+
+<script>
+/* =========================================================
+   1. GUION
+   ========================================================= */
+const GUION = [
+  {tipo:"slide", titulo:"Diapositiva 1 · Arranque", nota:"Estática de un televisor antiguo. Entra la música y baja suavemente."},
+  {tipo:"linea", hablante:"ANDREA", texto:"¡Hola, hola! Bienvenidos a Frecuencia Abierta, el podcast donde hablamos de tecnología sin que duela la cabeza. Soy Andrea Ferrer."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y yo soy Iliana Semprún. Hoy vengo con las preguntas que ustedes harían… y alguna que otra que no."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Perfecto, porque este tema da para mucho. Iliana, ¿te acuerdas de cuando había que mover la antena para quitar la nieve de la pantalla?"},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Claro! Siempre había alguien haciendo una pose rarísima con el brazo en alto para que se viera el partido."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y funcionaba. Movías un centímetro y aparecía la imagen. Movías otro y la perdías."},
+  {tipo:"linea", hablante:"ILIANA", texto:"La ciencia del pulso exacto."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Hoy vemos series en el celular, en el bus, sin antena y sin nieve. Pero llegar hasta aquí no fue magia."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Fue un montón de gente probando, equivocándose y volviendo a probar."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y hoy vamos a contar esa historia sin siglas, sin números y sin dolor de cabeza."},
+
+  {tipo:"slide", titulo:"Diapositiva 2 · El mapa del episodio", nota:"Música de fondo suave."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y cómo la vamos a ordenar?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"En tres paradas. Primero, la televisión de antes: la de tubo, la de la antena y la nieve."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Después, el momento en que la imagen dejó de ser una onda y se volvió algo que se podía guardar, copiar y enviar."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y al final, la televisión que todavía hoy llega por el aire, gratis, con una antena."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Prometemos explicarlo con analogías. Muchas analogías."},
+  {tipo:"linea", hablante:"ANDREA", texto:"¿Listos? Agarren el control remoto, que empezamos."},
+  {tipo:"nota", texto:"Clic de control remoto. Transición musical corta."},
+
+  {tipo:"slide", titulo:"Diapositiva 3 · El pintor invisible", nota:"Estática suave de fondo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Empecemos por lo básico, Andrea. ¿Cómo hacía un televisor viejo para dibujar una imagen?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Imagina a alguien pintando una pared con una brocha muy fina. Va línea por línea, de izquierda a derecha, de arriba hacia abajo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y cuando termina una línea, empieza la siguiente."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Exacto. Y lo hace tan rápido que el ojo no ve la brocha: ve la pared completa."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Un pintor velocísimo."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Un pintor que nunca se cansa. Y para que la imagen no parpadeara, el televisor no pintaba todas las líneas de corrido."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y qué hacía?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Pintaba primero unas cuantas, dejaba un hueco, pintaba otras… y después volvía a rellenar los huecos. Como cuando barres una habitación grande por partes."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Y por eso los televisores viejos se veían con esas rayitas!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Por eso. Y si la señal llegaba mal, aparecía la famosa nieve."},
+
+  {tipo:"slide", titulo:"Diapositiva 4 · La nieve y el papel aluminio"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Hablemos de la nieve. Porque la nieve era el enemigo público número uno."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Era la señal diciendo que no estaba llegando bien. Y la antena era la manera de rogarle que llegara mejor."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Mi abuela tenía la antena con papel aluminio."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Todos teníamos la antena con papel aluminio. Era el internet de la época."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y cuando había tormenta, se iba la imagen."},
+  {tipo:"linea", hablante:"ANDREA", texto:"O se iba el color, que era peor. De repente el presentador tenía la cara verde."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡La perilla del tinte! Había que rescatar a la gente del color equivocado."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y no era culpa del televisor. Era que cada país había inventado su propia manera de transmitir el color."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y esas maneras no se hablaban entre ellas."},
+
+  {tipo:"slide", titulo:"Diapositiva 5 · El problema de los idiomas"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Ahí está el primer gran problema de esta historia: no había un solo idioma."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Había varios. Como los enchufes."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Peor. Con el enchufe compras un adaptador y listo. Aquí, un video grabado en un país podía no verse en otro."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y por qué no se pusieron de acuerdo desde el principio?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Porque cada uno empezó a construir por su lado. Cuando quisieron hablar, ya cada quien tenía su casa hecha."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Como una orquesta donde cada músico afina a su manera. Al principio suena bien por separado… y juntos es un caos."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Un caos con muy buena intención. Cada sistema resolvía el problema a su manera, y funcionaba."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Solo que funcionaba en su propio barrio."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y así vivimos décadas: con videos que no cruzaban fronteras y familias enteras peleando con la perilla del color."},
+
+  {tipo:"slide", titulo:"Diapositiva 6 · Un mundo dividido"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y esta historia se repitió en todo el mundo."},
+  {tipo:"linea", hablante:"ANDREA", texto:"En América, una manera. En Europa, otra. En Francia, una tercera. Y cada una con sus propias reglas."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y eso importaba mucho?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Importaba muchísimo. Si te mudabas de país, tu televisor podía quedarse mudo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"O mudo a medias, que es más frustrante."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y si eras técnico, tenías que aprender tres oficios distintos."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y no había forma de traducir?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Sí, con equipos que hacían de traductor. Pero eran caros, aparatosos y no siempre funcionaban bien."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Como traducir un chiste: el sentido se pierde en el camino."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y el color también se perdía. Literalmente."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Bueno, al menos nos queda la anécdota de la antena con papel aluminio."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y la del vecino que tenía la imagen perfecta y no te decía cómo."},
+  {tipo:"nota", texto:"Clic de control remoto."},
+
+  {tipo:"slide", titulo:"Diapositiva 7 · El gran cambio", nota:"Efecto digital breve."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y entonces llegó el cambio más grande de todos."},
+  {tipo:"linea", hablante:"ILIANA", texto:"El momento en que la imagen dejó de ser una onda."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Exacto. Antes, la imagen era una señal continua, como el sonido de una guitarra."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y ahora es…"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Una lista. Una lista larguísima de números."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y eso qué cambia?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Que lo que se puede contar, se puede copiar. Y si lo copias, no se gasta."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Como una receta!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Como una receta. La primera vez que la haces, trabajas. La segunda, solo la repites."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Copiar sin perder calidad. Eso suena a magia."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Suena a magia, pero es pura aritmética. Y trajo algo que hoy damos por sentado: puedes ver la misma película mil veces y se ve igual."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Antes, cada copia de una cinta se veía un poquito peor."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y la copia de la copia, peor todavía. Como cuando pasas una foto de un chat a otro chat."},
+  {tipo:"linea", hablante:"ILIANA", texto:"O cuando imprimes una fotocopia de una fotocopia."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Exactamente esa sensación. El mundo digital la eliminó."},
+
+  {tipo:"slide", titulo:"Diapositiva 8 · La maleta"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Pero hay un problema, ¿no?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Siempre hay un problema."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Si la imagen es una lista de números, la lista debe ser enorme."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Enorme. Gigante. Imposible de guardar y de enviar tal cual."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Entonces, ¿cómo hacemos?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Comprimiendo. Que es una palabra elegante para decir: guardemos solo lo importante."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Como hacer una maleta!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"El arte de meter lo mismo en menos espacio. Y hay dos maneras de hacerlo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Cuéntame."},
+  {tipo:"linea", hablante:"ANDREA", texto:"La primera: doblar cada prenda por separado, con cuidado, una por una."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Ordenado, pero lento."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Sí. Y la segunda: darte cuenta de que casi toda la ropa es igual, y describirla una sola vez."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Eso es trampa!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Es inteligencia. Y es la base de casi todo lo que vemos hoy."},
+
+  {tipo:"slide", titulo:"Diapositiva 9 · El noticiero"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Ponme un ejemplo, porque me estoy perdiendo."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Piensa en un noticiero. El presentador habla, pero el fondo no se mueve."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Casi nunca."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Entonces, ¿para qué guardar el fondo una y otra vez? Se guarda una vez y luego solo se anotan los cambios."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Los labios, las manos, el parpadeo."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Exacto. Y así, un video que ocupaba un camión cabe en una caja."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Y por eso pudimos empezar a mandar videos por internet!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y a guardar películas enteras en algo del tamaño de un cuaderno."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Aunque al principio tardaban horas en descargarse."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Horas. Y si se cortaba la conexión, adiós."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Yo tuve un video que duró tres días descargándose."},
+  {tipo:"linea", hablante:"ANDREA", texto:"¿Y lo viste?"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Lo vi una vez y lo borré por miedo a que se rompiera."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Sabia decisión."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y hoy lo mismo se ve en segundos, desde el celular, en el bus."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Eso es lo que hizo la compresión: nos dio movilidad."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y también nos dio la alta definición, que es una palabra que suena a nave espacial."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Suena a nave espacial y significa más puntitos. Muchos más puntitos."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y más puntitos, más peso."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y ahí volvemos a la maleta. Cada vez queremos llevar más ropa en la misma maleta."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y alguien tiene que inventar cómo doblarla mejor."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y lo hicieron. Una y otra vez."},
+  {tipo:"nota", texto:"Clic de control remoto."},
+
+  {tipo:"slide", titulo:"Diapositiva 10 · La cajita", nota:"Cortina musical breve."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Llegamos a la última parada: la televisión que todavía hoy llega por el aire."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Gratis. Con una antena. Sin internet, sin cable, sin suscripción."},
+  {tipo:"linea", hablante:"ILIANA", texto:"La que salvó a más de uno cuando se cayó el wifi."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y la que hizo posible que el mundo entero cambiara de golpe."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Porque hubo un momento en que todos tuvimos que comprar un aparatico."},
+  {tipo:"linea", hablante:"ANDREA", texto:"El decodificador. La cajita."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡La cajita! Todo el mundo hablando de la cajita."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y la cajita hacía algo muy simple: traducir la nueva señal para el televisor viejo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Un traductor de bolsillo."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y otra vez se repitió la historia de los idiomas."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Porque cada región inventó su propia manera de mandar la señal."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Claro. Y otra vez nos quedamos con varias familias que no se hablan entre sí."},
+
+  {tipo:"slide", titulo:"Diapositiva 11 · El reparto del mundo"},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y cómo se repartieron el mundo esta vez?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Como siempre: por geografía, por historia y por quién llegó primero."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Norteamérica por un lado."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Europa por otro, y con mucha influencia en África y en buena parte de Asia."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Japón con su propia idea."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y China con la suya. Y después cada uno fue convenciendo a sus vecinos."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Como cuando eliges equipo de fútbol."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y no lo cambias nunca."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y ninguno era mejor que los otros?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Todos funcionaban. Cada uno tenía sus ventajas y sus mañas."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y cuál ganó?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Ninguno. Y ese es el chiste. Hoy siguen conviviendo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Como los idiomas. No hay uno que gane: hay uno que usas."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Exacto. Y esa es una de las cosas más lindas de la tecnología: no siempre hay un ganador."},
+
+  {tipo:"slide", titulo:"Diapositiva 12 · La tele que ya no es un aparato"},
+  {tipo:"linea", hablante:"ILIANA", texto:"Pero hay algo que sí cambió para todos, ¿no?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Sí. La televisión dejó de ser solo imagen y sonido."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y qué más es ahora?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Un servicio. Puedes preguntarle cosas, pedirle cosas, verla cuando quieras."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Ya no esperas a las ocho para ver tu novela."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Ahora la novela te espera a ti."},
+  {tipo:"linea", hablante:"ILIANA", texto:"¡Qué tiempos!"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y detrás de eso hay otra idea importante: la televisión dejó de ser un aparato y se volvió algo que viaja."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Como la música."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Como la música. Antes tenías que estar en la sala. Ahora está en tu bolsillo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y todo empezó moviendo una antena."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y con alguien haciendo una pose rarísima con el brazo en alto."},
+  {tipo:"nota", texto:"Clic de control remoto."},
+
+  {tipo:"slide", titulo:"Diapositiva 13 · Resumen", nota:"Música suave de fondo."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Hagamos un resumen, como los créditos al final de una película."},
+  {tipo:"linea", hablante:"ANDREA", texto:"La televisión de antes funcionaba con señal continua y cada región inventó su propio idioma."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y eso nos dejó videos que no cruzaban fronteras y perillas que había que ajustar a mano."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Después llegó lo digital, que convirtió la imagen en algo que se puede copiar sin perder calidad."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y con la compresión aprendimos a meter lo mismo en menos espacio."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Y así el video salió del televisor y se metió en la computadora, en el celular, en internet."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y mientras todo eso pasaba, la televisión por aire también cambió."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Con una cajita, una antena y muchas discusiones sobre qué sistema usar."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Discusiones que, para variar, no terminaron en un solo ganador."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Terminaron en varios. Y todos siguen ahí."},
+
+  {tipo:"slide", titulo:"Diapositiva 14 · La gran lección"},
+  {tipo:"linea", hablante:"ILIANA", texto:"¿Y cuál es la gran lección de todo este recorrido?"},
+  {tipo:"linea", hablante:"ANDREA", texto:"Que la tecnología no avanza sola. Avanza como avanza la gente: por regiones, por costumbres, por acuerdos y por desacuerdos."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y que lo que hoy nos parece obvio, algún día fue una decisión difícil."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Alguien tuvo que decidir cómo se veía el color, cómo se enviaba la imagen, cómo se guardaba el video."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Y esa persona no sabía que décadas después estaríamos viendo series en el celular."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Nadie lo sabía. Y aun así lo hicieron bien."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Bueno… casi siempre."},
+  {tipo:"linea", hablante:"ANDREA", texto:"Casi siempre."},
+  {tipo:"linea", hablante:"ILIANA", texto:"Gracias por acompañarnos en este viaje de la antena al streaming. Yo soy Iliana Semprún…"},
+  {tipo:"linea", hablante:"ANDREA", texto:"…y yo soy Andrea Ferrer. Esto fue Frecuencia Abierta."},
+  {tipo:"linea", hablante:"AMBAS", texto:"¡Nos escuchamos en el próximo episodio!"},
+  {tipo:"nota", texto:"Sube la cortina musical y se desvanece."}
+];
+
+/* =========================================================
+   2. MODELO
+   ========================================================= */
+const SECCIONES = [];
+(function construir(){
+  let actual = null, n = 0;
+  GUION.forEach(it => {
+    if (it.tipo === "slide"){
+      actual = { titulo: it.titulo, nota: it.nota || "", items: [] };
+      SECCIONES.push(actual);
+    } else if (actual){
+      if (it.tipo === "linea") actual.items.push({ ...it, id: "L" + (n++) });
+      else actual.items.push({ tipo:"nota", texto: it.texto });
+    }
+  });
+})();
+
+const TOTAL_LINEAS = SECCIONES.reduce((a,s)=> a + s.items.filter(i=>i.tipo==="linea").length, 0);
+
+/* =========================================================
+   3. RENDER
+   ========================================================= */
+const cont = document.getElementById("guion");
+
+SECCIONES.forEach((sec, si) => {
+  const el = document.createElement("section");
+  el.className = "slide";
+  el.dataset.slide = si;
+
+  const head = document.createElement("div");
+  head.className = "slide-head";
+  head.innerHTML =
+    '<div><span class="slide-tag">' + sec.titulo + '</span>' +
+    (sec.nota ? '<p class="slide-nota">' + sec.nota + '</p>' : '') + '</div>' +
+    '<div class="slide-actions">' +
+      '<span class="slide-status" data-status>0 / 0</span>' +
+      '<button class="btn btn-slide" data-dl disabled>⬇ Audio de la diapositiva</button>' +
+    '</div>';
+  el.appendChild(head);
+
+  const lines = document.createElement("div");
+  lines.className = "lines";
+
+  sec.items.forEach(item => {
+    if (item.tipo === "nota"){
+      const n = document.createElement("div");
+      n.className = "nota";
+      n.textContent = "— " + item.texto + " —";
+      lines.appendChild(n);
+      return;
+    }
+
+    const row = document.createElement("div");
+    row.className = "line line-" + item.hablante.toLowerCase();
+    row.dataset.lineId = item.id;
+    row.innerHTML =
+      '<div class="who">' + item.hablante + '</div>' +
+      '<div class="what">' + item.texto + '</div>' +
+      '<div class="audio-cell">' +
+        '<input type="file" accept="audio/*" id="f-' + item.id + '" hidden>' +
+        '<label for="f-' + item.id + '" class="btn-file">🎤 Cargar audio</label>' +
+        '<span class="file-info"></span>' +
+        '<span class="dur"></span>' +
+        '<button class="btn-icon play" hidden title="Escuchar">▶</button>' +
+        '<button class="btn-icon del" hidden title="Quitar">✕</button>' +
+      '</div>';
+    lines.appendChild(row);
+  });
+
+  el.appendChild(lines);
+  cont.appendChild(el);
+});
+
+/* =========================================================
+   4. ESTADO DE AUDIO
+   ========================================================= */
+const AUDIO = new Map();       // id -> {file, name, url, duration}
+let reproductor = null;
+
+/* ---------- IndexedDB (persistencia) ---------- */
+const DB_NAME = "frecuencia-abierta", STORE = "audios";
+let dbPromise = null;
+
+function openDB(){
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return dbPromise;
+}
+function idbPut(key, val){
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(val, key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+function idbDel(key){
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+function idbAll(){
+  return openDB().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readonly");
+    const st = tx.objectStore(STORE);
+    const keysReq = st.getAllKeys();
+    const valsReq = st.getAll();
+    tx.oncomplete = () => res({ keys: keysReq.result, vals: valsReq.result });
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+
+/* ---------- Contexto de audio ---------- */
+let ctx = null;
+function getCtx(){
+  if (ctx) return ctx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  try { ctx = new AC({ sampleRate: 48000 }); }
+  catch(e){ ctx = new AC(); }
+  return ctx;
+}
+
+/* ---------- Utilidades ---------- */
+function fmtTime(seg){
+  if (!isFinite(seg)) return "";
+  const m = Math.floor(seg / 60), s = Math.round(seg % 60);
+  return m + ":" + String(s).padStart(2, "0");
+}
+function nombreSeguro(txt){
+  return txt.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+function descargar(blob, nombre){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+}
+
+/* =========================================================
+   5. CARGA DE AUDIO POR LÍNEA
+   ========================================================= */
+async function setAudio(id, blob, nombre, persistir){
+  const row = document.querySelector('[data-line-id="' + id + '"]');
+  if (!row) return;
+
+  let dur = 0;
+  try {
+    const ab = await blob.arrayBuffer();
+    const buf = await getCtx().decodeAudioData(ab);
+    dur = buf.duration;
+  } catch(e){
+    const info = row.querySelector(".file-info");
+    info.className = "err";
+    info.textContent = "No se pudo leer este audio";
+    return;
+  }
+
+  const prev = AUDIO.get(id);
+  if (prev && prev.url) URL.revokeObjectURL(prev.url);
+
+  AUDIO.set(id, { file: blob, name: nombre, url: URL.createObjectURL(blob), duration: dur });
+  pintarFila(id);
+  refrescarContadores();
+
+  if (persistir !== false){
+    try { await idbPut(id, { name: nombre, blob }); }
+    catch(e){ console.warn("No se pudo guardar en el navegador", e); }
+  }
+}
+
+function pintarFila(id){
+  const row = document.querySelector('[data-line-id="' + id + '"]');
+  if (!row) return;
+  const a = AUDIO.get(id);
+  const info = row.querySelector(".file-info");
+  const lbl  = row.querySelector(".btn-file");
+  const play = row.querySelector(".play");
+  const del  = row.querySelector(".del");
+  const dur  = row.querySelector(".dur");
+
+  if (a){
+    row.classList.add("loaded");
+    info.className = "file-info";
+    info.textContent = a.name.length > 20 ? a.name.slice(0, 17) + "…" : a.name;
+    info.title = a.name;
+    dur.textContent = fmtTime(a.duration);
+    lbl.textContent = "🔄 Cambiar";
+    play.hidden = false;
+    del.hidden = false;
+  } else {
+    row.classList.remove("loaded");
+    info.className = "file-info";
+    info.textContent = "";
+    info.title = "";
+    dur.textContent = "";
+    lbl.textContent = "🎤 Cargar audio";
+    play.hidden = true;
+    del.hidden = true;
+  }
+}
+
+/* --- eventos de carga --- */
+document.addEventListener("change", async (e) => {
+  const input = e.target;
+  if (!input.matches('input[type="file"]')) return;
+  const id = input.id.slice(2);
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return;
+  await setAudio(id, file, file.name, true);
+});
+
+/* --- play / borrar --- */
+document.addEventListener("click", (e) => {
+  const play = e.target.closest(".play");
+  const del  = e.target.closest(".del");
+  if (play){
+    const id = play.closest("[data-line-id]").dataset.lineId;
+    const a = AUDIO.get(id);
+    if (!a) return;
+    if (reproductor) { reproductor.pause(); }
+    reproductor = new Audio(a.url);
+    reproductor.play().catch(()=>{});
+  }
+  if (del){
+    const id = del.closest("[data-line-id]").dataset.lineId;
+    const a = AUDIO.get(id);
+    if (a && a.url) URL.revokeObjectURL(a.url);
+    AUDIO.delete(id);
+    pintarFila(id);
+    refrescarContadores();
+    idbDel(id).catch(()=>{});
+  }
+});
+
+/* =========================================================
+   6. CONTADORES
+   ========================================================= */
+const statsEl = document.getElementById("stats");
+
+function refrescarContadores(){
+  // por sección
+  document.querySelectorAll(".slide").forEach((el, si) => {
+    const sec = SECCIONES[si];
+    const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
+    const listos = ids.filter(id => AUDIO.has(id)).length;
+    const st = el.querySelector("[data-status]");
+    const btn = el.querySelector("[data-dl]");
+    st.textContent = listos + " / " + ids.length;
+    st.classList.toggle("full", listos === ids.length && ids.length > 0);
+    btn.disabled = listos === 0;
+    btn.textContent = listos === ids.length && ids.length > 0
+      ? "⬇ Descargar diapositiva"
+      : "⬇ Descargar (" + listos + "/" + ids.length + ")";
+  });
+
+  // global
+  const hechas = [...AUDIO.keys()].length;
+  statsEl.textContent = hechas + " de " + TOTAL_LINEAS + " líneas con audio";
+}
+
+/* =========================================================
+   7. EXPORTACIÓN DE AUDIO (WAV)
+   ========================================================= */
+function encodeWAV(int16, canales, sampleRate){
+  const dataSize = int16.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const ws = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
+
+  ws(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  ws(8, "WAVE");
+  ws(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, canales, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * canales * 2, true);
+  view.setUint16(32, canales * 2, true);
+  view.setUint16(34, 16, true);
+  ws(36, "data");
+  view.setUint32(40, dataSize, true);
+  new Int16Array(buffer, 44).set(int16);
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+const progressEl = document.getElementById("progress");
+const progressBar = document.getElementById("progressBar");
+let exportando = false;
+
+function setProgreso(pct){
+  progressEl.classList.toggle("on", pct !== null);
+  progressBar.style.width = (pct === null ? 0 : pct) + "%";
+}
+
+/**
+ * lista: [{ id, gapMs }]
+ */
+async function exportarAudio(lista, nombreArchivo, gapPorDefecto){
+  if (exportando) return;
+
+  const conAudio = lista.filter(x => AUDIO.has(x.id));
+  if (conAudio.length === 0){
+    alert("Todavía no hay ningún audio cargado en esta selección.");
+    return;
+  }
+  const faltan = lista.length - conAudio.length;
+  if (faltan > 0 && !confirm("Faltan " + faltan + " línea(s) por cargar.\n¿Descargar de todas formas con lo que hay?")){
+    return;
+  }
+
+  exportando = true;
+  setProgreso(1);
+  bloquearBotones(true);
+
+  try{
+    const contexto = getCtx();
+    const sr = contexto.sampleRate;
+    const piezas = [];
+    let maxCanales = 1;
+    let totalFrames = 0;
+
+    for (let i = 0; i < lista.length; i++){
+      const item = lista[i];
+      const entry = AUDIO.get(item.id);
+      setProgreso(Math.round((i / lista.length) * 85));
+      await new Promise(r => setTimeout(r, 0));
+      if (!entry) continue;
+
+      let buf;
+      try{
+        const ab = await entry.file.arrayBuffer();
+        buf = await contexto.decodeAudioData(ab);
+      } catch(err){
+        console.warn("No se pudo decodificar", item.id, err);
+        continue;
+      }
+
+      const ch = Math.min(2, buf.numberOfChannels) || 1;
+      if (ch > maxCanales) maxCanales = ch;
+
+      const frames = buf.length;
+      const data = new Int16Array(frames * ch);
+      for (let c = 0; c < ch; c++){
+        const src = buf.getChannelData(c);
+        for (let s = 0; s < frames; s++){
+          let v = src[s];
+          if (v > 1) v = 1; else if (v < -1) v = -1;
+          data[s * ch + c] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+        }
+      }
+
+      const gapMs = (item.gapMs != null) ? item.gapMs : gapPorDefecto;
+      const gapFrames = Math.round(sr * gapMs / 1000);
+
+      piezas.push({ data, ch, frames, gapFrames });
+      totalFrames += frames + gapFrames;
+    }
+
+    if (piezas.length === 0){
+      alert("No se pudo procesar ningún audio. Revisa los archivos cargados.");
+      return;
+    }
+
+    setProgreso(90);
+    await new Promise(r => setTimeout(r, 0));
+
+    const salida = new Int16Array(totalFrames * maxCanales);
+    let frameOffset = 0;
+    for (const p of piezas){
+      if (p.ch === maxCanales){
+        salida.set(p.data, frameOffset * maxCanales);
+      } else if (p.ch === 1 && maxCanales === 2){
+        for (let s = 0; s < p.frames; s++){
+          const v = p.data[s];
+          const j = (frameOffset + s) * 2;
+          salida[j] = v;
+          salida[j + 1] = v;
+        }
+      }
+      frameOffset += p.frames + p.gapFrames;
+    }
+
+    setProgreso(97);
+    await new Promise(r => setTimeout(r, 0));
+
+    const wav = encodeWAV(salida, maxCanales, sr);
+    descargar(wav, nombreArchivo);
+
+    setProgreso(100);
+    setTimeout(() => setProgreso(null), 900);
+  } catch(err){
+    console.error(err);
+    alert("Ocurrió un error al unir el audio: " + err.message);
+    setProgreso(null);
+  } finally {
+    exportando = false;
+    bloquearBotones(false);
+  }
+}
+
+function bloquearBotones(estado){
+  document.querySelectorAll(".btn-slide, #btn-episodio").forEach(b => {
+    if (estado) b.disabled = true;
+    else if (b.id === "btn-episodio") b.disabled = false;
+    else refrescarContadores();
+  });
+}
+
+/* --- descarga por diapositiva --- */
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-slide");
+  if (!btn) return;
+  const el = btn.closest(".slide");
+  const si = Number(el.dataset.slide);
+  const sec = SECCIONES[si];
+  const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
+  const lista = ids.map(id => ({ id, gapMs: 220 }));
+  const nombre = "FA-" + String(si + 1).padStart(2, "0") + "-" + nombreSeguro(sec.titulo.replace(/^Diapositiva \d+ · /, "")) + ".wav";
+  exportarAudio(lista, nombre, 220);
+});
+
+/* --- descarga del episodio completo --- */
+document.getElementById("btn-episodio").addEventListener("click", () => {
+  const lista = [];
+  SECCIONES.forEach(sec => {
+    const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
+    ids.forEach((id, k) => {
+      lista.push({ id, gapMs: (k === ids.length - 1) ? 800 : 220 });
+    });
+  });
+  exportarAudio(lista, "Frecuencia-Abierta-De-la-antena-al-streaming.wav", 220);
+});
+
+/* --- borrar todo --- */
+document.getElementById("btn-limpiar").addEventListener("click", async () => {
+  if (!confirm("¿Borrar todos los audios cargados? Esta acción no se puede deshacer.")) return;
+  [...AUDIO.entries()].forEach(([id, a]) => {
+    if (a.url) URL.revokeObjectURL(a.url);
+    pintarFila(id);
+    idbDel(id).catch(()=>{});
+  });
+  AUDIO.clear();
+  refrescarContadores();
+});
+
+/* =========================================================
+   8. RESTAURAR AL CARGAR LA PÁGINA
+   ========================================================= */
+(async function restaurar(){
+  refrescarContadores();
+  try{
+    const { keys, vals } = await idbAll();
+    for (let i = 0; i < keys.length; i++){
+      const v = vals[i];
+      if (!v || !v.blob) continue;
+      if (!document.querySelector('[data-line-id="' + keys[i] + '"]')) continue;
+      await setAudio(keys[i], v.blob, v.name || "audio", false);
+    }
+  } catch(e){
+    console.warn("No se pudo restaurar el audio guardado:", e);
+  }
+  refrescarContadores();
+})();
+</script>
+</body>
+</html>
