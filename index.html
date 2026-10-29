@@ -184,7 +184,70 @@ const AUDIO = new Map(); // id -> { blob, dur, url }
 let player = null, playingId = null;
 let mediaRecorder = null, recLineId = null, recStartTime = 0, recTimer = null;
 
-/* 3. ALMACENAMIENTO LOCAL */
+/* 3. ALMACENAMIENTO (SUPABASE CLOUD + LOCAL) */
+const SUPABASE_URL = "https://trsrexlcdmjvjpxalrpe.supabase.co";
+const SUPABASE_KEY = "sb_publishable_MTfTMUj37RbGsxktaFVe2g_HHERWK3j";
+const BUCKET = "audios";
+
+async function uploadToCloud(id, blob){
+  try {
+    const ext = blob.type.includes("mp4") ? "mp4" : (blob.type.includes("ogg") ? "ogg" : "webm");
+    const filename = `${id}.${ext}`;
+    const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${filename}`;
+    
+    await fetch(url, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": blob.type || "audio/webm",
+        "x-upsert": "true"
+      },
+      body: blob
+    });
+  } catch(e){
+    console.warn("No se pudo subir a la nube:", e);
+  }
+}
+
+async function syncFromCloud(){
+  try {
+    const listUrl = `${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`;
+    const res = await fetch(listUrl, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prefix: "", limit: 100 })
+    });
+    if (!res.ok) return;
+    const files = await res.json();
+    if (!Array.isArray(files)) return;
+
+    for (const f of files){
+      const m = f.name.match(/^(L\d+)\./);
+      if (m){
+        const id = m[1];
+        if (!AUDIO.has(id)){
+          try {
+            const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${f.name}?t=${Date.now()}`;
+            const fileRes = await fetch(publicUrl);
+            if (fileRes.ok){
+              const blob = await fileRes.blob();
+              const dur = await getBlobDuration(blob);
+              await setAudio(id, blob, dur, true, false);
+            }
+          } catch(err){}
+        }
+      }
+    }
+  } catch(e){
+    console.warn("Error al sincronizar de la nube:", e);
+  }
+}
+
 function getDB(){
   return new Promise(res => {
     const r = indexedDB.open("FA_Audios", 1);
@@ -258,7 +321,7 @@ function formatTime(s){
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-async function setAudio(id, blob, dur, save = true){
+async function setAudio(id, blob, dur, save = true, uploadCloud = true){
   const row = document.querySelector(`[data-id="${id}"]`);
   if (!row) return;
 
@@ -273,6 +336,10 @@ async function setAudio(id, blob, dur, save = true){
 
   if (save) await dbSave(id, blob, dur);
   updateStats();
+
+  if (uploadCloud) {
+    uploadToCloud(id, blob);
+  }
 }
 
 function removeAudio(id){
@@ -509,14 +576,17 @@ document.getElementById("btn-clear").addEventListener("click", () => {
   }
 });
 
-/* 11. RESTAURAR LOCAL AL ENTRAR */
+/* 11. RESTAURAR LOCAL Y SINCRONIZAR CON LA NUBE */
 (async function init(){
+  // 1. Cargar lo que tengamos localmente de inmediato
   const { keys, vals } = await dbGetAll();
   for (let i = 0; i < keys.length; i++){
     if (vals[i] && vals[i].blob){
-      await setAudio(keys[i], vals[i].blob, vals[i].dur || 1, false);
+      await setAudio(keys[i], vals[i].blob, vals[i].dur || 1, false, false);
     }
   }
+  // 2. Traer lo que haya subido Andrea o tú desde cualquier dispositivo
+  await syncFromCloud();
 })();
 </script>
 </body>
