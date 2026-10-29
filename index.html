@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <title>De la antena al streaming · Guion con audio</title>
 <style>
   :root{
@@ -17,6 +18,33 @@
     font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
     line-height:1.5;
   }
+
+    /* ---------- Drag & Drop Overlay & Toast ---------- */
+  .drop-overlay{
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(13,16,20,.88); z-index:9999;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    border:3px dashed var(--accent); backdrop-filter:blur(6px);
+    pointer-events:none;
+  }
+  .drop-overlay.active{display:flex}
+  .drop-overlay-box{
+    text-align:center; padding:30px 40px; border-radius:18px;
+    background:var(--panel); border:1px solid var(--line);
+    box-shadow:0 12px 36px rgba(0,0,0,.6);
+  }
+  .drop-overlay-icon{font-size:48px; margin-bottom:12px}
+  .drop-overlay-title{font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px}
+  .drop-overlay-sub{font-size:13px; color:var(--muted)}
+
+  .toast{
+    position:fixed; bottom:24px; right:24px; z-index:1000;
+    padding:12px 18px; border-radius:10px; background:var(--panel2);
+    border:1px solid var(--ok); color:var(--text); font-size:13px; font-weight:600;
+    box-shadow:0 8px 24px rgba(0,0,0,.5); opacity:0; transform:translateY(12px);
+    transition:.25s ease; pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateY(0)}
 
   /* ---------- Barra superior ---------- */
   .toolbar{
@@ -148,13 +176,25 @@
   </div>
   <div class="toolbar-stats" id="stats">0 de 0 líneas con audio</div>
   <div class="toolbar-actions">
-    <button id="btn-episodio" class="btn btn-primary">⬇ Descargar episodio completo</button>
+    <input type="file" id="input-multiple" multiple accept="audio/*,.zip" hidden>
+    <button id="btn-importar" class="btn" title="Arrastra archivos aquí o haz clic para subir varios audios o un .zip">📥 Cargar varios audios</button>
+    <button id="btn-exportar-zip" class="btn" title="Descargar todas las tomas en un archivo .zip para compartir o subir a GitHub">📦 Descargar paquete (.zip)</button>
+    <button id="btn-episodio" class="btn btn-primary">⬇ Descargar episodio completo (WAV)</button>
     <button id="btn-limpiar" class="btn btn-ghost">🗑 Borrar todo</button>
   </div>
 </div>
 <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
 
 <main id="guion"></main>
+<div id="dropOverlay" class="drop-overlay">
+  <div class="drop-overlay-box">
+    <div class="drop-overlay-icon">📥</div>
+    <div class="drop-overlay-title">Suelta tus audios aquí</div>
+    <div class="drop-overlay-sub">Puedes soltar múltiples archivos de audio o un archivo .zip con las tomas</div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
 
 <footer>
   🎙️ <strong>Estudio de grabación integrado:</strong> Puedes pulsar <strong>⏺ Grabar</strong> para grabar cada intervención directamente desde tu micrófono o audífonos (o usar 📁 para subir archivos existentes). Todo se guarda automáticamente en tu navegador y puedes descargar el episodio completo en formato WAV masterizado sin pérdida.
@@ -859,11 +899,264 @@ document.getElementById("btn-limpiar").addEventListener("click", async () => {
 });
 
 /* =========================================================
+   CARGA MASIVA, DRAG & DROP Y EXPORTACIÓN ZIP
+   ========================================================= */
+const toastEl = document.getElementById("toast");
+function mostrarToast(msg, dur = 3500){
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  setTimeout(() => toastEl.classList.remove("show"), dur);
+}
+
+// Emparejador inteligente de archivos con líneas de guion
+function detectarIdDeArchivo(nombre){
+  const clean = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  // 1. Patrón directo L0, L1, L02, etc.
+  const m1 = clean.match(/(?:^|[^a-z0-9])l(\d+)(?:[^a-z0-9]|$)/);
+  if (m1) {
+    const id = "L" + parseInt(m1[1], 10);
+    if (document.querySelector('[data-line-id="' + id + '"]')) return id;
+  }
+
+  // 2. Patrón de diapositiva y hablante: ej. "d1-andrea", "slide2_iliana"
+  const mSlide = clean.match(/(?:diapositiva|slide|d)[\s_-]*(\d+)/);
+  if (mSlide){
+    const sIndex = parseInt(mSlide[1], 10) - 1;
+    if (SECCIONES[sIndex]){
+      let hablante = "";
+      if (clean.includes("andrea")) hablante = "ANDREA";
+      else if (clean.includes("iliana")) hablante = "ILIANA";
+      else if (clean.includes("ambas")) hablante = "AMBAS";
+
+      const items = SECCIONES[sIndex].items.filter(i => i.tipo === "linea");
+      if (hablante){
+        const match = items.find(i => i.hablante === hablante);
+        if (match) return match.id;
+      }
+      if (items.length === 1) return items[0].id;
+    }
+  }
+
+  // 3. Patrón simple "toma-1", "audio-1"
+  const mNum = clean.match(/(?:toma|audio|voz|track)[\s_-]*(\d+)/);
+  if (mNum){
+    const id = "L" + parseInt(mNum[1], 10);
+    if (document.querySelector('[data-line-id="' + id + '"]')) return id;
+  }
+
+  return null;
+}
+
+// Procesar lista de archivos (Files o Blobs descomprimidos)
+async function procesarArchivos(fileList){
+  let cargados = 0;
+  const noReconocidos = [];
+
+  for (const file of fileList){
+    const name = file.name;
+    // Si es un archivo .zip, descomprimir con JSZip
+    if (name.toLowerCase().endsWith(".zip")){
+      if (typeof JSZip === "undefined"){
+        alert("La librería JSZip no está disponible para descomprimir.");
+        continue;
+      }
+      try {
+        const zip = await JSZip.loadAsync(file);
+        const zipFiles = [];
+        zip.forEach((relPath, zipEntry) => {
+          if (!zipEntry.dir && !relPath.startsWith("__MACOSX") && !relPath.endsWith(".json") && !relPath.endsWith(".md")){
+            zipFiles.push(zipEntry);
+          }
+        });
+        for (const ze of zipFiles){
+          const blob = await ze.async("blob");
+          const fname = ze.name.split("/").pop();
+          const targetId = detectarIdDeArchivo(fname);
+          if (targetId){
+            await setAudio(targetId, blob, fname, true);
+            cargados++;
+          } else {
+            noReconocidos.push(fname);
+          }
+        }
+      } catch(e){
+        console.error("Error al leer zip:", e);
+        alert("No se pudo leer el archivo ZIP: " + e.message);
+      }
+      continue;
+    }
+
+    // Si es un archivo de audio directo
+    const targetId = detectarIdDeArchivo(name);
+    if (targetId){
+      await setAudio(targetId, file, name, true);
+      cargados++;
+    } else {
+      noReconocidos.push(name);
+    }
+  }
+
+  if (cargados > 0){
+    mostrarToast("✅ " + cargados + " audio(s) cargados y sincronizados correctamente.");
+  }
+  if (noReconocidos.length > 0){
+    alert("Se cargaron " + cargados + " audios.\n\nLos siguientes archivos no se pudieron asociar a una línea (asegúrate de que tengan 'L0', 'L1', etc.):\n• " + noReconocidos.slice(0, 10).join("\n• ") + (noReconocidos.length > 10 ? "\n... y " + (noReconocidos.length - 10) + " más" : ""));
+  }
+}
+
+// Drag & Drop
+const dropOverlay = document.getElementById("dropOverlay");
+let dragCounter = 0;
+
+window.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  dragCounter++;
+  if (dropOverlay) dropOverlay.classList.add("active");
+});
+window.addEventListener("dragleave", (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0 && dropOverlay){
+    dropOverlay.classList.remove("active");
+    dragCounter = 0;
+  }
+});
+window.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+window.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  if (dropOverlay) dropOverlay.classList.remove("active");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0){
+    await procesarArchivos(Array.from(e.dataTransfer.files));
+  }
+});
+
+// Botón de Cargar varios audios
+const inputMultiple = document.getElementById("input-multiple");
+const btnImportar = document.getElementById("btn-importar");
+if (btnImportar && inputMultiple){
+  btnImportar.addEventListener("click", () => inputMultiple.click());
+  inputMultiple.addEventListener("change", async () => {
+    if (inputMultiple.files && inputMultiple.files.length > 0){
+      await procesarArchivos(Array.from(inputMultiple.files));
+      inputMultiple.value = "";
+    }
+  });
+}
+
+// Botón de Exportar paquete .zip con manifest
+const btnExportarZip = document.getElementById("btn-exportar-zip");
+if (btnExportarZip){
+  btnExportarZip.addEventListener("click", async () => {
+    if (AUDIO.size === 0){
+      alert("No hay ningún audio cargado todavía para exportar.");
+      return;
+    }
+    if (typeof JSZip === "undefined"){
+      alert("No se pudo cargar JSZip para empaquetar.");
+      return;
+    }
+
+    btnExportarZip.disabled = true;
+    btnExportarZip.textContent = "⏳ Empaquetando...";
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder("audios");
+      const manifest = {};
+
+      for (const [id, a] of AUDIO.entries()){
+        const ext = a.name.includes(".") ? a.name.split(".").pop() : "webm";
+        const sec = SECCIONES.find(s => s.items.some(it => it.id === id));
+        const item = sec ? sec.items.find(it => it.id === id) : null;
+        const hablante = item ? item.hablante : "VOZ";
+        const filename = id + "-" + hablante + "." + ext;
+        
+        folder.file(filename, a.file);
+        manifest[id] = "audios/" + filename;
+      }
+
+      folder.file("manifest.json", JSON.stringify(manifest, null, 2));
+
+      const blobZip = await zip.generateAsync({ type: "blob" });
+      descargar(blobZip, "frecuencia-abierta-audios-paquete.zip");
+      mostrarToast("📦 Paquete .zip descargado con éxito.");
+    } catch(err){
+      console.error(err);
+      alert("Error al crear el paquete zip: " + err.message);
+    } finally {
+      btnExportarZip.disabled = false;
+      btnExportarZip.textContent = "📦 Descargar paquete (.zip)";
+    }
+  });
+}
+
+// Carga automática desde audios oficiales en GitHub
+async function cargarAudiosDesdeServidor(){
+  try {
+    // 1. Probar manifest.json
+    const res = await fetch("audios/manifest.json?t=" + Date.now());
+    if (res.ok){
+      const manifest = await res.json();
+      let nuevos = 0;
+      for (const [id, path] of Object.entries(manifest)){
+        if (!AUDIO.has(id)){
+          try {
+            const fileRes = await fetch(path + "?t=" + Date.now());
+            if (fileRes.ok){
+              const blob = await fileRes.blob();
+              const fname = path.split("/").pop();
+              await setAudio(id, blob, fname, true);
+              nuevos++;
+            }
+          } catch(e){}
+        }
+      }
+      if (nuevos > 0) refrescarContadores();
+    }
+  } catch(e){
+    // Servidor sin manifest aún
+  }
+
+  // 2. Comprobación directa para líneas faltantes (L0.webm, L0.mp3, etc.)
+  const faltantes = [];
+  SECCIONES.forEach(sec => {
+    sec.items.filter(it => it.tipo === "linea").forEach(it => {
+      if (!AUDIO.has(it.id)) faltantes.push(it.id);
+    });
+  });
+
+  const formatos = ["webm", "mp3", "wav", "ogg"];
+  for (const id of faltantes){
+    for (const ext of formatos){
+      if (AUDIO.has(id)) break;
+      try {
+        const testUrl = "audios/" + id + "." + ext;
+        const r = await fetch(testUrl, { method: "HEAD" });
+        if (r.ok){
+          const getR = await fetch(testUrl);
+          if (getR.ok){
+            const blob = await getR.blob();
+            await setAudio(id, blob, id + "." + ext, true);
+            break;
+          }
+        }
+      } catch(e){}
+    }
+  }
+  refrescarContadores();
+}
+
+/* =========================================================
    8. RESTAURAR AL CARGAR LA PÁGINA
    ========================================================= */
 (async function restaurar(){
   refrescarContadores();
   try{
+    // 1. Restaurar del almacenamiento local del navegador
     const { keys, vals } = await idbAll();
     for (let i = 0; i < keys.length; i++){
       const v = vals[i];
@@ -875,6 +1168,9 @@ document.getElementById("btn-limpiar").addEventListener("click", async () => {
     console.warn("No se pudo restaurar el audio guardado:", e);
   }
   refrescarContadores();
+
+  // 2. Sincronizar automáticamente audios subidos al repositorio en GitHub
+  await cargarAudiosDesdeServidor();
 })();
 </script>
 </body>
