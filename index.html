@@ -3,40 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Frecuencia Abierta · Grabador de Guion</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<title>Frecuencia Abierta · Guion y Grabación</title>
 <style>
   :root{
     --bg:#0f1217; --card:#181d24; --line:#262f3c; --text:#e6ebf2; --muted:#8b9bb0;
     --andrea:#38d6c4; --iliana:#c07bf5; --ambas:#ffb454; --ok:#3ddc84; --danger:#ff5252; --accent:#3b82f6;
   }
   *{box-sizing:border-box; margin:0; padding:0}
-  body{background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; line-height:1.5}
-  
-  /* Barra superior */
-  header{
-    position:sticky; top:0; z-index:100; background:rgba(15,18,23,.95); backdrop-filter:blur(8px);
-    border-bottom:1px solid var(--line); padding:12px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
-  }
-  .title strong{font-size:16px; display:block}
-  .title span{font-size:12px; color:var(--muted)}
-  .actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
-  
-  /* Botones generales */
-  button, label.btn{
-    font:inherit; font-size:13px; font-weight:600; padding:8px 14px; border-radius:8px; cursor:pointer;
-    border:1px solid var(--line); background:#202731; color:var(--text); display:inline-flex; align-items:center; gap:6px;
-    text-decoration:none; transition:.15s;
-  }
-  button:hover, label.btn:hover{background:#2b3442; border-color:#3e4c60}
-  .btn-primary{background:linear-gradient(135deg,#2563eb,#4f46e5); border:none; color:#fff}
-  .btn-primary:hover{filter:brightness(1.15)}
-  .btn-ghost{background:transparent; border-color:transparent; color:var(--muted)}
-  .btn-ghost:hover{color:var(--danger)}
-  
-  /* Contenedor principal */
-  main{max-width:1050px; margin:0 auto; padding:24px 16px 80px}
-  .slide{background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:20px; overflow:hidden}
+  body{background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; line-height:1.5; padding:20px 14px 100px}
+
+  main{max-width:1000px; margin:0 auto}
+
+  /* Tarjetas de diapositiva */
+  .slide{background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:22px; overflow:hidden}
   .slide-header{
     background:#1d232c; padding:12px 18px; border-bottom:1px solid var(--line);
     display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; color:var(--accent);
@@ -44,67 +23,69 @@
   .slide-header span.status{font-size:12px; font-weight:500; color:var(--muted)}
   .slide-header span.status.done{color:var(--ok)}
 
-  /* Líneas de diálogo */
-  .line{display:grid; grid-template-columns:90px 1fr auto; gap:16px; align-items:center; padding:14px 18px; border-bottom:1px solid rgba(38,47,60,.5)}
+  /* Línea de diálogo */
+  .line{
+    display:grid; grid-template-columns:90px 1fr auto; gap:16px; align-items:center;
+    padding:14px 18px; border-bottom:1px solid rgba(38,47,60,.5); transition:.2s;
+  }
   .line:last-child{border-bottom:none}
-  .line.has-audio{background:rgba(61,220,132,.03)}
-  
+  .line.has-audio{background:rgba(61,220,132,.04)}
+  .line.drag-target{background:rgba(59,130,246,.12); outline:2px dashed var(--accent)}
+
   .who{font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase}
   .who.andrea{color:var(--andrea)}
   .who.iliana{color:var(--iliana)}
   .who.ambas{color:var(--ambas)}
-  .text{font-size:14.5px}
+  .text{font-size:15px}
 
-  /* Controles de audio */
+  /* Controles por línea */
   .controls{display:flex; align-items:center; gap:8px}
+  button, label.btn-upload{
+    font:inherit; font-size:12.5px; font-weight:600; padding:7px 13px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--line); background:#202731; color:var(--text); display:inline-flex; align-items:center; gap:5px;
+    text-decoration:none; transition:.15s; white-space:nowrap;
+  }
+  button:hover, label.btn-upload:hover{background:#2b3442; border-color:#3e4c60}
+
   .btn-rec{background:rgba(255,82,82,.12); border-color:#ff5252; color:#ff5252}
   .btn-rec:hover{background:rgba(255,82,82,.25); color:#fff}
   .btn-rec.recording{background:#dc2626; color:#fff; animation:pulse 1s infinite}
   @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.7}}
-  
-  .has-audio .btn-rec{background:#202731; border-color:var(--line); color:var(--muted); font-weight:500}
-  .has-audio .btn-rec:hover{color:var(--text); border-color:#3e4c60}
 
+  .has-audio .btn-rec{background:#202731; border-color:var(--line); color:var(--muted); font-weight:500}
   .btn-circle{width:32px; height:32px; border-radius:50%; padding:0; justify-content:center}
-  .dur{font-size:11px; color:var(--ok); font-weight:600; min-width:34px; text-align:right}
+  .dur{font-size:11px; color:var(--ok); font-weight:600; min-width:32px; text-align:right}
 
   .nota{padding:10px 18px; font-size:12.5px; font-style:italic; color:#78889b; background:rgba(255,255,255,.01); text-align:center}
-  
-  /* Zona drag & drop */
-  .drop-zone{
-    border:2px dashed var(--line); border-radius:12px; padding:20px; text-align:center;
-    margin-bottom:24px; color:var(--muted); font-size:13px; background:rgba(24,29,36,.5); transition:.2s;
+
+  /* Barra inferior fija solo para descargar el resultado final */
+  .bottom-bar{
+    position:fixed; bottom:0; left:0; width:100%; background:rgba(15,18,23,.96); backdrop-filter:blur(8px);
+    border-top:1px solid var(--line); padding:12px 20px; display:flex; justify-content:space-between; align-items:center; z-index:100;
   }
-  .drop-zone.dragover{border-color:var(--accent); background:rgba(59,130,246,.08); color:var(--text)}
+  .bottom-info{font-size:13px; font-weight:600; color:var(--muted)}
+  .bottom-actions{display:flex; gap:10px}
+  .btn-wav{background:linear-gradient(135deg,#2563eb,#4f46e5); border:none; color:#fff; padding:9px 16px}
+  .btn-wav:hover{filter:brightness(1.15)}
 
   @media(max-width:768px){
     .line{grid-template-columns:1fr; gap:10px}
     .controls{justify-content:flex-start}
+    .bottom-bar{flex-direction:column; gap:8px; text-align:center}
   }
 </style>
 </head>
 <body>
 
-<header>
-  <div class="title">
-    <strong>🎙️ Frecuencia Abierta</strong>
-    <span id="global-stats">0 de 40 audios listos</span>
-  </div>
-  <div class="actions">
-    <input type="file" id="file-input" multiple accept="audio/*,.zip" hidden>
-    <label for="file-input" class="btn" title="Cargar audios o archivo .zip">📥 Cargar audios / .zip</label>
-    <button id="btn-zip" title="Descargar todas las tomas en un .zip para enviárselo a tu compañera">📦 Descargar paquete (.zip)</button>
-    <button id="btn-wav" class="btn-primary">⬇ Descargar episodio (WAV)</button>
-    <button id="btn-clear" class="btn-ghost" title="Borrar todas las grabaciones locales">🗑</button>
-  </div>
-</header>
+<main id="slides-container"></main>
 
-<main>
-  <div class="drop-zone" id="drop-zone">
-    💡 <strong>Tip rápido:</strong> Puedes arrastrar y soltar aquí tus archivos de audio o el <strong>.zip</strong> de tu compañera para cargarlos automáticamente.
+<div class="bottom-bar">
+  <div class="bottom-info" id="global-stats">0 de 40 diálogos con audio</div>
+  <div class="bottom-actions">
+    <button id="btn-wav" class="btn-wav">⬇ Descargar episodio completo (WAV)</button>
+    <button id="btn-clear" style="background:transparent; border-color:transparent; color:var(--muted);" title="Borrar todo">🗑</button>
   </div>
-  <div id="slides-container"></div>
-</main>
+</div>
 
 <script>
 /* 1. GUION */
@@ -183,7 +164,7 @@ const GUION = [
   {tipo:"nota", texto:"Sube la cortina musical y se desvanece."}
 ];
 
-/* 2. CONSTRUCCIÓN DE LA ESTRUCTURA */
+/* 2. ESTRUCTURA */
 const SECCIONES = [];
 let lineCount = 0;
 let currentSlide = null;
@@ -199,11 +180,11 @@ GUION.forEach(it => {
 });
 
 const TOTAL_LINEAS = lineCount;
-const AUDIO = new Map(); // id -> { blob, duration, url }
+const AUDIO = new Map(); // id -> { blob, dur, url }
 let player = null, playingId = null;
 let mediaRecorder = null, recLineId = null, recStartTime = 0, recTimer = null;
 
-/* 3. STORAGE LOCAL (IndexedDB) */
+/* 3. ALMACENAMIENTO LOCAL */
 function getDB(){
   return new Promise(res => {
     const r = indexedDB.open("FA_Audios", 1);
@@ -250,9 +231,11 @@ SECCIONES.forEach((sec, sIdx) => {
         <div class="text">${it.texto}</div>
         <div class="controls">
           <button class="btn-rec" data-rec="${it.id}">⏺ Grabar</button>
-          <button class="btn-circle play" data-play="${it.id}" style="display:none">▶</button>
+          <input type="file" accept="audio/*" id="file-${it.id}" hidden data-file-input="${it.id}">
+          <label for="file-${it.id}" class="btn-upload" title="Subir audio para este diálogo">📁 Subir</label>
+          <button class="btn-circle play" data-play="${it.id}" style="display:none" title="Escuchar">▶</button>
           <span class="dur"></span>
-          <button class="btn-circle del" data-del="${it.id}" style="display:none" title="Eliminar">✕</button>
+          <button class="btn-circle del" data-del="${it.id}" style="display:none" title="Quitar audio">✕</button>
         </div>
       </div>
     `;
@@ -312,7 +295,7 @@ function removeAudio(id){
 }
 
 function updateStats(){
-  document.getElementById("global-stats").textContent = `${AUDIO.size} de ${TOTAL_LINEAS} audios listos`;
+  document.getElementById("global-stats").textContent = `${AUDIO.size} de ${TOTAL_LINEAS} diálogos con audio`;
   SECCIONES.forEach((sec, idx) => {
     const card = document.querySelector(`[data-slide-index="${idx}"]`);
     const total = sec.items.filter(i => i.tipo === "linea").length;
@@ -356,7 +339,7 @@ async function startRecording(id){
 
     mediaRecorder.start();
   } catch(err){
-    alert("No se pudo acceder al micrófono. Revisa los permisos de tu navegador.");
+    alert("No se pudo acceder al micrófono. Por favor permite el acceso en tu navegador.");
   }
 }
 
@@ -413,45 +396,33 @@ document.addEventListener("click", e => {
   }
 });
 
-/* 9. IDENTIFICADOR FLEXIBLE DE LÍNEA */
-function identifyLineId(filename){
-  const clean = filename.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  // 1. Busca L0, L1, L02, L-0, L_12, etc.
-  const mL = clean.match(/(?:^|[^a-z0-9])l[-_\s]*(\d+)(?:[^a-z0-9]|$)/);
-  if (mL){
-    const id = "L" + parseInt(mL[1], 10);
-    if (document.querySelector(`[data-id="${id}"]`)) return id;
+/* SUBIDA DIRECTA EN CADA DIÁLOGO */
+document.addEventListener("change", async e => {
+  const input = e.target.closest("[data-file-input]");
+  if (input && input.files && input.files[0]){
+    const id = input.dataset.fileInput;
+    const file = input.files[0];
+    const dur = await getBlobDuration(file);
+    await setAudio(id, file, dur, true);
+    input.value = "";
   }
+});
 
-  // 2. Busca por diapositiva y personaje: ej. "diapositiva 1 andrea", "d2_iliana"
-  const mSlide = clean.match(/(?:diapositiva|slide|d)[-_\s]*(\d+)/);
-  if (mSlide){
-    const sIdx = parseInt(mSlide[1], 10) - 1;
-    if (SECCIONES[sIdx]){
-      const lines = SECCIONES[sIdx].items.filter(i => i.tipo === "linea");
-      let who = "";
-      if (clean.includes("andrea")) who = "ANDREA";
-      else if (clean.includes("iliana")) who = "ILIANA";
-      else if (clean.includes("ambas")) who = "AMBAS";
-
-      if (who){
-        const match = lines.find(i => i.hablante === who);
-        if (match) return match.id;
-      }
-      if (lines.length === 1) return lines[0].id;
+/* ARRASTRAR DIRECTAMENTE A CUALQUIER FILA */
+document.querySelectorAll(".line").forEach(row => {
+  row.addEventListener("dragover", e => { e.preventDefault(); row.classList.add("drag-target"); });
+  row.addEventListener("dragleave", () => row.classList.remove("drag-target"));
+  row.addEventListener("drop", async e => {
+    e.preventDefault();
+    row.classList.remove("drag-target");
+    if (e.dataTransfer.files && e.dataTransfer.files[0]){
+      const id = row.dataset.id;
+      const file = e.dataTransfer.files[0];
+      const dur = await getBlobDuration(file);
+      await setAudio(id, file, dur, true);
     }
-  }
-
-  // 3. Busca números solos: ej. "toma 0", "audio 5"
-  const mNum = clean.match(/(?:toma|audio|voz|track)[-_\s]*(\d+)/);
-  if (mNum){
-    const id = "L" + parseInt(mNum[1], 10);
-    if (document.querySelector(`[data-id="${id}"]`)) return id;
-  }
-
-  return null;
-}
+  });
+});
 
 function getBlobDuration(blob){
   return new Promise(res => {
@@ -469,104 +440,9 @@ function getBlobDuration(blob){
   });
 }
 
-/* CARGAR ARCHIVOS Y ZIP */
-async function loadFiles(fileList){
-  const files = Array.from(fileList);
-  if (!files.length) return;
-
-  let loaded = 0;
-  const unrecognized = [];
-
-  for (const f of files){
-    const isZip = f.name.toLowerCase().endsWith(".zip") || f.type.includes("zip");
-
-    if (isZip){
-      try {
-        const zip = await JSZip.loadAsync(f);
-        const entries = Object.values(zip.files).filter(e => !e.dir && !e.name.startsWith("__MACOSX") && !e.name.startsWith("."));
-        for (const entry of entries){
-          const fname = entry.name.split("/").pop();
-          const id = identifyLineId(fname);
-          if (id){
-            const blob = await entry.async("blob");
-            const dur = await getBlobDuration(blob);
-            await setAudio(id, blob, dur, true);
-            loaded++;
-          } else if (fname && !fname.endsWith(".json") && !fname.endsWith(".txt")) {
-            unrecognized.push(fname);
-          }
-        }
-      } catch(err){
-        console.error(err);
-        alert("Error al leer el archivo ZIP: " + err.message);
-      }
-    } else {
-      const id = identifyLineId(f.name);
-      if (id){
-        const dur = await getBlobDuration(f);
-        await setAudio(id, f, dur, true);
-        loaded++;
-      } else {
-        unrecognized.push(f.name);
-      }
-    }
-  }
-
-  if (loaded > 0){
-    alert(`🎉 ¡Éxito! Se cargaron y sincronizaron ${loaded} audios en sus casillas.`);
-  } else {
-    alert("No se pudo reconocer a qué línea corresponden los archivos.\n\nAsegúrate de que los archivos contengan en su nombre 'L0', 'L1', 'L2', etc.");
-  }
-}
-
-// Evento selector de archivos
-const fileInput = document.getElementById("file-input");
-fileInput.addEventListener("change", async e => {
-  if (e.target.files && e.target.files.length){
-    await loadFiles(e.target.files);
-    e.target.value = "";
-  }
-});
-
-// Eventos Drag & Drop en toda la ventana y en la zona dedicada
-const dropZone = document.getElementById("drop-zone");
-
-window.addEventListener("dragover", e => {
-  e.preventDefault();
-  if (dropZone) dropZone.classList.add("dragover");
-});
-window.addEventListener("dragleave", e => {
-  if (e.clientX <= 0 || e.clientY <= 0) {
-    if (dropZone) dropZone.classList.remove("dragover");
-  }
-});
-window.addEventListener("drop", async e => {
-  e.preventDefault();
-  if (dropZone) dropZone.classList.remove("dragover");
-  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
-    await loadFiles(e.dataTransfer.files);
-  }
-});
-
-/* 10. EXPORTAR ZIP (Para compartir con Andrea) */
-document.getElementById("btn-zip").addEventListener("click", async () => {
-  if (AUDIO.size === 0) return alert("Aún no tienes audios grabados.");
-  const zip = new JSZip();
-  for (const [id, a] of AUDIO.entries()){
-    const item = GUION.find(g => g.id === id) || {};
-    const name = `${id}_${item.hablante || 'VOZ'}.webm`;
-    zip.file(name, a.blob);
-  }
-  const content = await zip.generateAsync({ type: "blob" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(content);
-  link.download = "audios_frecuencia_abierta.zip";
-  link.click();
-});
-
-/* 11. EXPORTAR WAV MASTERIZADO */
+/* 9. DESCARGAR EPISODIO COMPLETO */
 document.getElementById("btn-wav").addEventListener("click", async () => {
-  if (AUDIO.size === 0) return alert("No hay audios cargados para generar el episodio.");
+  if (AUDIO.size === 0) return alert("Aún no has montado audios para generar el episodio.");
   const AC = window.AudioContext || window.webkitAudioContext;
   const ctx = new AC();
   const pieces = [];
@@ -598,7 +474,6 @@ document.getElementById("btn-wav").addEventListener("click", async () => {
     offset += p.length + gapFrames;
   });
 
-  // Convertir a WAV
   const dataLen = outBuf.length * maxChannels * 2;
   const buffer = new ArrayBuffer(44 + dataLen);
   const view = new DataView(buffer);
@@ -626,15 +501,15 @@ document.getElementById("btn-wav").addEventListener("click", async () => {
   link.click();
 });
 
-/* 12. BORRAR TODO */
+/* 10. BORRAR TODO */
 document.getElementById("btn-clear").addEventListener("click", () => {
-  if (confirm("¿Borrar todos los audios locales?")){
+  if (confirm("¿Borrar todos los audios montados?")){
     indexedDB.deleteDatabase("FA_Audios");
     location.reload();
   }
 });
 
-/* 13. RESTAURAR LOCAL AL ENTRAR */
+/* 11. RESTAURAR LOCAL AL ENTRAR */
 (async function init(){
   const { keys, vals } = await dbGetAll();
   for (let i = 0; i < keys.length; i++){
