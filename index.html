@@ -71,34 +71,47 @@
   /* ---------- Líneas ---------- */
   .lines{padding:6px 0}
   .line{
-    display:grid; grid-template-columns:96px 1fr 290px;
+    display:grid; grid-template-columns:96px 1fr 330px;
     gap:14px; align-items:start;
     padding:12px 20px; border-bottom:1px solid rgba(35,44,56,.55);
   }
   .line:last-child{border-bottom:none}
   .line.loaded{background:rgba(61,220,132,.035)}
-
-  .who{
-    font-size:11px; font-weight:800; letter-spacing:1px;
-    padding-top:4px; text-transform:uppercase;
-  }
-  .line-andrea .who{color:var(--andrea)}
-  .line-iliana .who{color:var(--iliana)}
-  .line-ambas  .who{color:var(--ambas)}
-
-  .what{font-size:15px; padding-top:1px}
+  .line.recording-now{background:rgba(255,77,79,.06); border-color:rgba(255,77,79,.3)}
 
   .audio-cell{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
-  .btn-file{
-    font-size:12px; font-weight:600; padding:7px 11px; border-radius:8px;
-    border:1px dashed #3a4757; background:transparent; color:var(--muted);
-    cursor:pointer; white-space:nowrap; transition:.15s;
+  
+  /* Botón de grabar */
+  .btn-rec{
+    font-size:12px; font-weight:700; padding:7px 12px; border-radius:8px;
+    border:1px solid #ff4d4f; background:rgba(255,77,79,.12); color:#ff6b6b;
+    cursor:pointer; white-space:nowrap; transition:.15s; display:inline-flex; align-items:center; gap:6px;
   }
-  .btn-file:hover{color:var(--text); border-color:var(--accent); background:rgba(77,163,255,.08)}
-  .loaded .btn-file{border-style:solid; color:var(--ok); border-color:rgba(61,220,132,.5)}
+  .btn-rec:hover{background:rgba(255,77,79,.25); color:#fff}
+  .btn-rec.recording{
+    background:#e03131; color:#fff; border-color:#ff6b6b;
+    box-shadow:0 0 10px rgba(224,49,49,.6);
+    animation:rec-blink 1.2s infinite;
+  }
+  @keyframes rec-blink{
+    0%, 100%{ opacity: 1; }
+    50%{ opacity: .75; }
+  }
+  .loaded .btn-rec{
+    border-color:#3a4757; background:var(--panel2); color:var(--muted); font-weight:600;
+  }
+  .loaded .btn-rec:hover{border-color:var(--accent); color:var(--text); background:#28323f}
 
-  .file-info{font-size:11.5px; color:var(--muted); max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .dur{font-size:11.5px; color:var(--ok); font-variant-numeric:tabular-nums}
+  /* Botón subir archivo */
+  .btn-upload{
+    font-size:12px; font-weight:600; padding:6px 9px; border-radius:8px;
+    border:1px dashed #3a4757; background:transparent; color:var(--muted);
+    cursor:pointer; white-space:nowrap; transition:.15s; display:inline-flex; align-items:center;
+  }
+  .btn-upload:hover{color:var(--text); border-color:var(--accent); background:rgba(77,163,255,.08)}
+
+  .file-info{font-size:11.5px; color:var(--muted); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .dur{font-size:11.5px; color:var(--ok); font-variant-numeric:tabular-nums; font-weight:600}
   .err{font-size:11.5px; color:var(--danger)}
 
   .btn-icon{
@@ -107,6 +120,7 @@
     display:grid; place-items:center; font-size:11px; padding:0; transition:.15s;
   }
   .btn-icon:hover{background:#28323f}
+  .btn-icon.play.playing{background:var(--accent); color:#fff; border-color:var(--accent)}
   .btn-icon.del:hover{color:var(--danger); border-color:var(--danger)}
 
   .nota{
@@ -143,8 +157,7 @@
 <main id="guion"></main>
 
 <footer>
-  El audio se une en formato WAV (sin pérdida). Los archivos que cargues quedan guardados en este navegador,
-  así que puedes cerrar la página y continuar después en el mismo equipo.
+  🎙️ <strong>Estudio de grabación integrado:</strong> Puedes pulsar <strong>⏺ Grabar</strong> para grabar cada intervención directamente desde tu micrófono o audífonos (o usar 📁 para subir archivos existentes). Todo se guarda automáticamente en tu navegador y puedes descargar el episodio completo en formato WAV masterizado sin pérdida.
 </footer>
 
 <script>
@@ -285,12 +298,13 @@ SECCIONES.forEach((sec, si) => {
       '<div class="who">' + item.hablante + '</div>' +
       '<div class="what">' + item.texto + '</div>' +
       '<div class="audio-cell">' +
+        '<button type="button" class="btn-rec">⏺ Grabar</button>' +
+        '<button type="button" class="btn-icon play" hidden title="Escuchar">▶</button>' +
         '<input type="file" accept="audio/*" id="f-' + item.id + '" hidden>' +
-        '<label for="f-' + item.id + '" class="btn-file">🎤 Cargar audio</label>' +
-        '<span class="file-info"></span>' +
+        '<label for="f-' + item.id + '" class="btn-upload" title="O subir archivo de audio">📁</label>' +
         '<span class="dur"></span>' +
-        '<button class="btn-icon play" hidden title="Escuchar">▶</button>' +
-        '<button class="btn-icon del" hidden title="Quitar">✕</button>' +
+        '<span class="file-info"></span>' +
+        '<button type="button" class="btn-icon del" hidden title="Quitar audio">✕</button>' +
       '</div>';
     lines.appendChild(row);
   });
@@ -300,10 +314,118 @@ SECCIONES.forEach((sec, si) => {
 });
 
 /* =========================================================
-   4. ESTADO DE AUDIO
+   4. ESTADO DE AUDIO Y GRABADORA DIRECTA
    ========================================================= */
 const AUDIO = new Map();       // id -> {file, name, url, duration}
 let reproductor = null;
+let reproduciendoId = null;
+
+let micStream = null;
+let currentRecorder = null;
+let recordingLineId = null;
+let recTimer = null;
+let recStartTime = 0;
+
+async function getMicStream(){
+  if (micStream && micStream.active) return micStream;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true }
+    });
+    return micStream;
+  } catch(err){
+    alert("No se pudo acceder al micrófono: " + (err.message || err) + "\nVerifica los permisos de tu navegador.");
+    return null;
+  }
+}
+
+function detenerReproduccion(){
+  if (reproductor){
+    try { reproductor.pause(); } catch(e){}
+    reproductor = null;
+  }
+  if (reproduciendoId){
+    const row = document.querySelector('[data-line-id="' + reproduciendoId + '"]');
+    if (row){
+      const p = row.querySelector(".play");
+      if (p){
+        p.textContent = "▶";
+        p.classList.remove("playing");
+      }
+    }
+    reproduciendoId = null;
+  }
+}
+
+async function iniciarGrabacion(id){
+  const stream = await getMicStream();
+  if (!stream) return;
+
+  const row = document.querySelector('[data-line-id="' + id + '"]');
+  if (!row) return;
+
+  let mimeType = '';
+  if (typeof MediaRecorder !== 'undefined'){
+    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+    else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+    else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+    else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mimeType = 'audio/ogg;codecs=opus';
+  } else {
+    alert("Tu navegador no soporta MediaRecorder para grabar directamente. Puedes subir archivos usando el botón 📁.");
+    return;
+  }
+
+  const chunks = [];
+  let recorder;
+  try {
+    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch(e){
+    recorder = new MediaRecorder(stream);
+  }
+
+  currentRecorder = recorder;
+  recordingLineId = id;
+  recStartTime = Date.now();
+
+  recorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) chunks.push(e.data);
+  };
+
+  recorder.onstop = async () => {
+    if (recTimer) { clearInterval(recTimer); recTimer = null; }
+    const finalId = id;
+    recordingLineId = null;
+    currentRecorder = null;
+
+    const rowActual = document.querySelector('[data-line-id="' + finalId + '"]');
+    if (rowActual) rowActual.classList.remove("recording-now");
+
+    const blobType = recorder.mimeType || 'audio/webm';
+    const blob = new Blob(chunks, { type: blobType });
+    const ext = blobType.includes('ogg') ? 'ogg' : (blobType.includes('mp4') ? 'mp4' : 'webm');
+    const sec = SECCIONES.find(s => s.items.some(it => it.id === finalId));
+    const nombre = "toma-" + finalId + "." + ext;
+    await setAudio(finalId, blob, nombre, true);
+  };
+
+  recorder.start(100);
+  row.classList.add("recording-now");
+  const bRec = row.querySelector(".btn-rec");
+  bRec.className = "btn-rec recording";
+  bRec.textContent = "⏹ Detener (0:00)";
+
+  recTimer = setInterval(() => {
+    if (recordingLineId !== id) return;
+    const seg = Math.floor((Date.now() - recStartTime) / 1000);
+    if (bRec) bRec.textContent = "⏹ Detener (" + fmtTime(seg) + ")";
+  }, 250);
+}
+
+function detenerGrabacion(){
+  if (currentRecorder && currentRecorder.state !== 'inactive'){
+    currentRecorder.stop();
+  }
+}
 
 /* ---------- IndexedDB (persistencia) ---------- */
 const DB_NAME = "frecuencia-abierta", STORE = "audios";
@@ -414,18 +536,29 @@ function pintarFila(id){
   if (!row) return;
   const a = AUDIO.get(id);
   const info = row.querySelector(".file-info");
-  const lbl  = row.querySelector(".btn-file");
+  const btnRec = row.querySelector(".btn-rec");
   const play = row.querySelector(".play");
   const del  = row.querySelector(".del");
   const dur  = row.querySelector(".dur");
 
+  if (recordingLineId === id){
+    row.classList.add("recording-now");
+    btnRec.className = "btn-rec recording";
+    play.hidden = true;
+    del.hidden = true;
+    return;
+  }
+
+  row.classList.remove("recording-now");
+  btnRec.className = "btn-rec";
+
   if (a){
     row.classList.add("loaded");
     info.className = "file-info";
-    info.textContent = a.name.length > 20 ? a.name.slice(0, 17) + "…" : a.name;
+    info.textContent = a.name.length > 14 ? a.name.slice(0, 11) + "…" : a.name;
     info.title = a.name;
     dur.textContent = fmtTime(a.duration);
-    lbl.textContent = "🔄 Cambiar";
+    btnRec.textContent = "🔄 Regrabar";
     play.hidden = false;
     del.hidden = false;
   } else {
@@ -434,7 +567,7 @@ function pintarFila(id){
     info.textContent = "";
     info.title = "";
     dur.textContent = "";
-    lbl.textContent = "🎤 Cargar audio";
+    btnRec.textContent = "⏺ Grabar";
     play.hidden = true;
     del.hidden = true;
   }
@@ -451,20 +584,59 @@ document.addEventListener("change", async (e) => {
   await setAudio(id, file, file.name, true);
 });
 
-/* --- play / borrar --- */
-document.addEventListener("click", (e) => {
-  const play = e.target.closest(".play");
-  const del  = e.target.closest(".del");
+/* --- eventos: grabar / play / borrar --- */
+document.addEventListener("click", async (e) => {
+  const btnRec = e.target.closest(".btn-rec");
+  const play   = e.target.closest(".play");
+  const del    = e.target.closest(".del");
+
+  // Botón de grabar / detener
+  if (btnRec){
+    const row = btnRec.closest("[data-line-id]");
+    const id = row.dataset.lineId;
+    if (recordingLineId === id){
+      detenerGrabacion();
+    } else {
+      if (recordingLineId){
+        detenerGrabacion();
+      }
+      detenerReproduccion();
+      await iniciarGrabacion(id);
+    }
+    return;
+  }
+
+  // Botón de escuchar / pausar
   if (play){
-    const id = play.closest("[data-line-id]").dataset.lineId;
+    const row = play.closest("[data-line-id]");
+    const id = row.dataset.lineId;
     const a = AUDIO.get(id);
     if (!a) return;
-    if (reproductor) { reproductor.pause(); }
+
+    if (reproduciendoId === id){
+      detenerReproduccion();
+      return;
+    }
+
+    detenerReproduccion();
+    if (recordingLineId){ detenerGrabacion(); }
+
     reproductor = new Audio(a.url);
-    reproductor.play().catch(()=>{});
+    reproduciendoId = id;
+    play.textContent = "⏸";
+    play.classList.add("playing");
+    reproductor.onended = () => { detenerReproduccion(); };
+    reproductor.onerror = () => { detenerReproduccion(); };
+    reproductor.play().catch(() => { detenerReproduccion(); });
+    return;
   }
+
+  // Botón de quitar / borrar audio
   if (del){
-    const id = del.closest("[data-line-id]").dataset.lineId;
+    const row = del.closest("[data-line-id]");
+    const id = row.dataset.lineId;
+    detenerReproduccion();
+    if (recordingLineId === id){ detenerGrabacion(); }
     const a = AUDIO.get(id);
     if (a && a.url) URL.revokeObjectURL(a.url);
     AUDIO.delete(id);
