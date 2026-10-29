@@ -3,220 +3,124 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frecuencia Abierta · Grabador de Guion</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<title>De la antena al streaming · Guion con audio</title>
 <style>
   :root{
-    --bg:#0d1014; --panel:#151a21; --panel2:#1b222c; --line:#232c38;
-    --text:#e6ebf2; --muted:#8b9bb0;
-    --andrea:#38d6c4; --iliana:#c07bf5; --ambas:#ffb454;
-    --ok:#3ddc84; --danger:#ff6b6b; --accent:#4da3ff;
+    --bg:#0f1217; --card:#181d24; --line:#262f3c; --text:#e6ebf2; --muted:#8b9bb0;
+    --andrea:#38d6c4; --iliana:#c07bf5; --ambas:#ffb454; --ok:#3ddc84; --danger:#ff5252; --accent:#3b82f6;
   }
-  *{box-sizing:border-box}
-  body{
-    margin:0; background:var(--bg); color:var(--text);
-    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
-    line-height:1.5;
-  }
-
-    /* ---------- Drag & Drop Overlay & Toast ---------- */
-  .drop-overlay{
-    position:fixed; top:0; left:0; width:100%; height:100%;
-    background:rgba(13,16,20,.88); z-index:9999;
-    display:none; flex-direction:column; align-items:center; justify-content:center;
-    border:3px dashed var(--accent); backdrop-filter:blur(6px);
-    pointer-events:none;
-  }
-  .drop-overlay.active{display:flex}
-  .drop-overlay-box{
-    text-align:center; padding:30px 40px; border-radius:18px;
-    background:var(--panel); border:1px solid var(--line);
-    box-shadow:0 12px 36px rgba(0,0,0,.6);
-  }
-  .drop-overlay-icon{font-size:48px; margin-bottom:12px}
-  .drop-overlay-title{font-size:18px; font-weight:700; color:var(--text); margin-bottom:6px}
-  .drop-overlay-sub{font-size:13px; color:var(--muted)}
-
-  .toast{
-    position:fixed; bottom:24px; right:24px; z-index:1000;
-    padding:12px 18px; border-radius:10px; background:var(--panel2);
-    border:1px solid var(--ok); color:var(--text); font-size:13px; font-weight:600;
-    box-shadow:0 8px 24px rgba(0,0,0,.5); opacity:0; transform:translateY(12px);
-    transition:.25s ease; pointer-events:none;
-  }
-  .toast.show{opacity:1; transform:translateY(0)}
-
-  /* ---------- Barra superior ---------- */
-  .toolbar{
-    position:sticky; top:0; z-index:50;
-    display:flex; flex-wrap:wrap; gap:12px 20px; align-items:center;
-    padding:12px 20px; background:rgba(13,16,20,.94);
-    border-bottom:1px solid var(--line); backdrop-filter:blur(8px);
-  }
-  .toolbar-info strong{display:block; font-size:15px; letter-spacing:.3px}
-  .toolbar-info .sub{font-size:12px; color:var(--muted)}
-  .toolbar-stats{font-size:12px; color:var(--muted); margin-left:auto}
-  .toolbar-actions{display:flex; gap:8px; flex-wrap:wrap}
-
-  .btn{
-    font:inherit; font-size:13px; font-weight:600; cursor:pointer;
-    border-radius:9px; padding:9px 14px; border:1px solid var(--line);
-    background:var(--panel2); color:var(--text); transition:.15s;
-    white-space:nowrap;
-  }
-  .btn:hover:not(:disabled){background:#28323f; border-color:#3a4757}
-  .btn:disabled{opacity:.38; cursor:not-allowed}
-  .btn-primary{background:linear-gradient(135deg,#2f8fff,#6f5bff); border:none; color:#fff}
-  .btn-primary:hover:not(:disabled){filter:brightness(1.12)}
-  .btn-ghost{background:transparent; color:var(--muted)}
-  .btn-ghost:hover:not(:disabled){color:var(--danger); border-color:var(--danger)}
-
-  .progress{height:3px; background:var(--line); position:sticky; top:63px; z-index:49; display:none}
-  .progress.on{display:block}
-  .progress-bar{height:100%; width:0; background:linear-gradient(90deg,#2f8fff,#6f5bff); transition:width .2s}
-
-  /* ---------- Secciones ---------- */
-  main{max-width:1180px; margin:0 auto; padding:26px 18px 80px}
-  .slide{
-    background:var(--panel); border:1px solid var(--line);
-    border-radius:16px; margin-bottom:22px; overflow:hidden;
-  }
-  .slide-head{
-    display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between;
-    align-items:center; padding:16px 20px;
-    background:linear-gradient(180deg,#1a212b,#151a21);
-    border-bottom:1px solid var(--line);
-  }
-  .slide-tag{
-    display:inline-block; font-size:11px; font-weight:700; letter-spacing:1.2px;
-    text-transform:uppercase; color:var(--accent);
-  }
-  .slide-nota{margin:4px 0 0; font-size:12.5px; color:var(--muted); font-style:italic}
-  .slide-actions{display:flex; align-items:center; gap:10px}
-  .slide-status{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
-  .slide-status.full{color:var(--ok)}
-
-  /* ---------- Líneas ---------- */
-  .lines{padding:6px 0}
-  .line{
-    display:grid; grid-template-columns:96px 1fr 330px;
-    gap:14px; align-items:start;
-    padding:12px 20px; border-bottom:1px solid rgba(35,44,56,.55);
-  }
-  .line:last-child{border-bottom:none}
-  .line.loaded{background:rgba(61,220,132,.035)}
-  .line.recording-now{background:rgba(255,77,79,.06); border-color:rgba(255,77,79,.3)}
-
-  .audio-cell{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; line-height:1.5}
   
-  /* Botón de grabar */
-  .btn-rec{
-    font-size:12px; font-weight:700; padding:7px 12px; border-radius:8px;
-    border:1px solid #ff4d4f; background:rgba(255,77,79,.12); color:#ff6b6b;
-    cursor:pointer; white-space:nowrap; transition:.15s; display:inline-flex; align-items:center; gap:6px;
+  /* Barra superior */
+  header{
+    position:sticky; top:0; z-index:100; background:rgba(15,18,23,.95); backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line); padding:12px 20px; display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between;
   }
-  .btn-rec:hover{background:rgba(255,77,79,.25); color:#fff}
-  .btn-rec.recording{
-    background:#e03131; color:#fff; border-color:#ff6b6b;
-    box-shadow:0 0 10px rgba(224,49,49,.6);
-    animation:rec-blink 1.2s infinite;
+  .title strong{font-size:16px; display:block}
+  .title span{font-size:12px; color:var(--muted)}
+  .actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  
+  /* Botones generales */
+  button, label.btn{
+    font:inherit; font-size:13px; font-weight:600; padding:8px 14px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--line); background:#202731; color:var(--text); display:inline-flex; align-items:center; gap:6px;
+    text-decoration:none; transition:.15s;
   }
-  @keyframes rec-blink{
-    0%, 100%{ opacity: 1; }
-    50%{ opacity: .75; }
+  button:hover, label.btn:hover{background:#2b3442; border-color:#3e4c60}
+  .btn-primary{background:linear-gradient(135deg,#2563eb,#4f46e5); border:none; color:#fff}
+  .btn-primary:hover{filter:brightness(1.15)}
+  .btn-ghost{background:transparent; border-color:transparent; color:var(--muted)}
+  .btn-ghost:hover{color:var(--danger)}
+  
+  /* Contenedor principal */
+  main{max-width:1050px; margin:0 auto; padding:24px 16px 80px}
+  .slide{background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:20px; overflow:hidden}
+  .slide-header{
+    background:#1d232c; padding:12px 18px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700; color:var(--accent);
   }
-  .loaded .btn-rec{
-    border-color:#3a4757; background:var(--panel2); color:var(--muted); font-weight:600;
-  }
-  .loaded .btn-rec:hover{border-color:var(--accent); color:var(--text); background:#28323f}
+  .slide-header span.status{font-size:12px; font-weight:500; color:var(--muted)}
+  .slide-header span.status.done{color:var(--ok)}
 
-  /* Botón subir archivo */
-  .btn-upload{
-    font-size:12px; font-weight:600; padding:6px 9px; border-radius:8px;
-    border:1px dashed #3a4757; background:transparent; color:var(--muted);
-    cursor:pointer; white-space:nowrap; transition:.15s; display:inline-flex; align-items:center;
+  /* Líneas de diálogo */
+  .line{display:grid; grid-template-columns:90px 1fr auto; gap:16px; align-items:center; padding:14px 18px; border-bottom:1px solid rgba(38,47,60,.5)}
+  .line:last-child{border-bottom:none}
+  .line.has-audio{background:rgba(61,220,132,.03)}
+  
+  .who{font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase}
+  .who.andrea{color:var(--andrea)}
+  .who.iliana{color:var(--iliana)}
+  .who.ambas{color:var(--ambas)}
+  .text{font-size:14.5px}
+
+  /* Controles de audio */
+  .controls{display:flex; align-items:center; gap:8px}
+  .btn-rec{background:rgba(255,82,82,.12); border-color:#ff5252; color:#ff5252}
+  .btn-rec:hover{background:rgba(255,82,82,.25); color:#fff}
+  .btn-rec.recording{background:#dc2626; color:#fff; animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1} 50%{opacity:.7}}
+  
+  .has-audio .btn-rec{background:#202731; border-color:var(--line); color:var(--muted); font-weight:500}
+  .has-audio .btn-rec:hover{color:var(--text); border-color:#3e4c60}
+
+  .btn-circle{width:32px; height:32px; border-radius:50%; padding:0; justify-content:center}
+  .dur{font-size:11px; color:var(--ok); font-weight:600; min-width:34px; text-align:right}
+
+  .nota{padding:10px 18px; font-size:12.5px; font-style:italic; color:#78889b; background:rgba(255,255,255,.01); text-align:center}
+  
+  /* Zona drag & drop */
+  .drop-zone{
+    border:2px dashed var(--line); border-radius:12px; padding:20px; text-align:center;
+    margin-bottom:24px; color:var(--muted); font-size:13px; background:rgba(24,29,36,.5); transition:.2s;
   }
-  .btn-upload:hover{color:var(--text); border-color:var(--accent); background:rgba(77,163,255,.08)}
+  .drop-zone.dragover{border-color:var(--accent); background:rgba(59,130,246,.08); color:var(--text)}
 
-  .file-info{font-size:11.5px; color:var(--muted); max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .dur{font-size:11.5px; color:var(--ok); font-variant-numeric:tabular-nums; font-weight:600}
-  .err{font-size:11.5px; color:var(--danger)}
-
-  .btn-icon{
-    width:28px; height:28px; border-radius:50%; border:1px solid var(--line);
-    background:var(--panel2); color:var(--text); cursor:pointer;
-    display:grid; place-items:center; font-size:11px; padding:0; transition:.15s;
-  }
-  .btn-icon:hover{background:#28323f}
-  .btn-icon.play.playing{background:var(--accent); color:#fff; border-color:var(--accent)}
-  .btn-icon.del:hover{color:var(--danger); border-color:var(--danger)}
-
-  .nota{
-    padding:10px 20px; font-size:13px; font-style:italic; color:#6f7f94;
-    text-align:center; border-bottom:1px solid rgba(35,44,56,.55);
-    background:rgba(255,255,255,.012);
-  }
-
-  footer{max-width:1180px; margin:0 auto; padding:0 18px 50px; font-size:12px; color:#5e6d80}
-
-  @media (max-width:860px){
-    .line{grid-template-columns:1fr; gap:8px; padding:14px 16px}
-    .who{padding-top:0}
-    .audio-cell{margin-top:2px}
-    .toolbar-stats{margin-left:0; width:100%; order:3}
+  @media(max-width:768px){
+    .line{grid-template-columns:1fr; gap:10px}
+    .controls{justify-content:flex-start}
   }
 </style>
 </head>
 <body>
 
-<div class="toolbar">
-  <div class="toolbar-info">
+<header>
+  <div class="title">
     <strong>🎙️ Frecuencia Abierta</strong>
-    <span class="sub">De la antena al streaming</span>
+    <span id="global-stats">0 de 40 audios listos</span>
   </div>
-  <div class="toolbar-stats" id="stats">0 de 0 líneas con audio</div>
-  <div class="toolbar-actions">
-    <input type="file" id="input-multiple" multiple accept="audio/*,.zip" hidden>
-    <button id="btn-importar" class="btn" title="Arrastra archivos aquí o haz clic para subir varios audios o un .zip">📥 Cargar varios audios</button>
-    <button id="btn-exportar-zip" class="btn" title="Descargar todas las tomas en un archivo .zip para compartir o subir a GitHub">📦 Descargar paquete (.zip)</button>
-    <button id="btn-episodio" class="btn btn-primary">⬇ Descargar episodio completo (WAV)</button>
-    <button id="btn-limpiar" class="btn btn-ghost">🗑 Borrar todo</button>
+  <div class="actions">
+    <input type="file" id="file-input" multiple accept="audio/*,.zip" hidden>
+    <label for="file-input" class="btn" title="Cargar audios o archivo .zip">📥 Cargar audios / .zip</label>
+    <button id="btn-zip" title="Descargar todas las tomas en un .zip para enviárselo a tu compañera">📦 Descargar paquete (.zip)</button>
+    <button id="btn-wav" class="btn-primary">⬇ Descargar episodio (WAV)</button>
+    <button id="btn-clear" class="btn-ghost" title="Borrar todas las grabaciones locales">🗑</button>
   </div>
-</div>
-<div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+</header>
 
-<main id="guion"></main>
-<div id="dropOverlay" class="drop-overlay">
-  <div class="drop-overlay-box">
-    <div class="drop-overlay-icon">📥</div>
-    <div class="drop-overlay-title">Suelta tus audios aquí</div>
-    <div class="drop-overlay-sub">Puedes soltar múltiples archivos de audio o un archivo .zip con las tomas</div>
+<main>
+  <div class="drop-zone" id="drop-zone">
+    💡 <strong>Tip rápido:</strong> Puedes arrastrar y soltar aquí tus archivos de audio o el <strong>.zip</strong> de tu compañera para cargarlos automáticamente.
   </div>
-</div>
-<div id="toast" class="toast"></div>
-
-
-<footer>
-  🎙️ <strong>Estudio de grabación integrado:</strong> Puedes pulsar <strong>⏺ Grabar</strong> para grabar cada intervención directamente desde tu micrófono o audífonos (o usar 📁 para subir archivos existentes). Todo se guarda automáticamente en tu navegador y puedes descargar el episodio completo en formato WAV masterizado sin pérdida.
-</footer>
+  <div id="slides-container"></div>
+</main>
 
 <script>
-/* =========================================================
-   1. GUION
-   ========================================================= */
+/* 1. GUION */
 const GUION = [
-  {tipo:"slide", titulo:"Diapositiva 1 · Arranque", nota:"Estática de un televisor antiguo. Entra la música y baja suavemente."},
+  {tipo:"slide", titulo:"Diapositiva 1 · Arranque"},
   {tipo:"linea", hablante:"ANDREA", texto:"¡Hola, hola! Bienvenidos a Frecuencia Abierta, el podcast donde hablamos de tecnología sin que duela la cabeza. Soy Andrea Ferrer, y hoy traemos un viaje fascinante por la evolución de la pantalla."},
   {tipo:"linea", hablante:"ILIANA", texto:"Y yo soy Iliana Semprún. Hoy vengo con las preguntas que ustedes harían… y alguna que otra curiosidad. Andrea, ¿te acuerdas de cuando había que mover la antena para quitar la nieve de la pantalla? Siempre había alguien haciendo una pose rarísima con el brazo en alto para que se pudiera ver el partido."},
   {tipo:"linea", hablante:"ANDREA", texto:"¡Y funcionaba! La ciencia del pulso exacto: movías un centímetro y aparecía la imagen, movías otro y la perdías. Hoy vemos series en el celular o en el bus, sin antena y sin nieve. Pero llegar hasta aquí no fue magia: fue un montón de gente probando, equivocándose y volviendo a intentar. Y hoy vamos a contar esa historia sin siglas, sin tecnicismos y sin dolor de cabeza."},
 
-  {tipo:"slide", titulo:"Diapositiva 2 · El mapa del episodio", nota:"Música de fondo suave."},
+  {tipo:"slide", titulo:"Diapositiva 2 · El mapa del episodio"},
   {tipo:"linea", hablante:"ILIANA", texto:"¿Y cómo vamos a ordenar este viaje en el tiempo para no perdernos?"},
   {tipo:"linea", hablante:"ANDREA", texto:"En tres paradas muy claras. Primero, la televisión de antes: la de tubo catódico, la de la antena y la nieve. Después, el gran salto: el momento en que la imagen dejó de ser una onda continua y se convirtió en algo que se podía guardar, copiar y enviar sin perder calidad. Y al final, la televisión digital que todavía hoy nos llega por el aire, gratis, con una antena."},
   {tipo:"linea", hablante:"ILIANA", texto:"Me parece un plan perfecto. Prometemos explicar cada etapa con analogías sencillas y cotidianas. ¿Listos? Agarren su control remoto, que empezamos."},
   {tipo:"nota", texto:"Clic de control remoto. Transición musical corta."},
 
-  {tipo:"slide", titulo:"Diapositiva 3 · El pintor invisible", nota:"Estática suave de fondo."},
+  {tipo:"slide", titulo:"Diapositiva 3 · El pintor invisible"},
   {tipo:"linea", hablante:"ILIANA", texto:"Empecemos por lo básico, Andrea. Para los que no vivieron esa época o nunca se lo preguntaron: ¿cómo hacía un televisor viejo de tubo para dibujar una imagen en la pantalla?"},
   {tipo:"linea", hablante:"ANDREA", texto:"Imagina a alguien pintando una pared con una brocha diminuta y ultra rápida. Va línea por línea, de izquierda a derecha y de arriba hacia abajo. Lo hace a tal velocidad que el ojo humano no ve la brocha, sino la pared completa pintada al instante. Y para que no parpadeara, pintaba primero unas cuantas líneas dejando un hueco, y luego volvía a rellenar los espacios vacíos."},
   {tipo:"linea", hablante:"ILIANA", texto:"¡Claro, como barrer una habitación grande por partes! Y por eso los televisores antiguos tenían esas características rayitas horizontales cuando te acercabas mucho, o la famosa nieve cuando la señal no llegaba con claridad."},
@@ -237,7 +141,7 @@ const GUION = [
   {tipo:"linea", hablante:"ILIANA", texto:"Como cuando traduces un chiste a otro idioma y pierde toda la gracia en el camino. Al menos nos quedaron las anécdotas de las antenas, los cables improvisados y el vecino misterioso que lograba tener la imagen perfecta sin decirle a nadie su truco."},
   {tipo:"nota", texto:"Clic de control remoto."},
 
-  {tipo:"slide", titulo:"Diapositiva 7 · El gran cambio", nota:"Efecto digital breve."},
+  {tipo:"slide", titulo:"Diapositiva 7 · El gran cambio"},
   {tipo:"linea", hablante:"ANDREA", texto:"Y entonces ocurrió la mayor revolución en la historia audiovisual: el momento en que la imagen dejó de ser una onda continua y se convirtió en una lista de números. Pura información binaria."},
   {tipo:"linea", hablante:"ILIANA", texto:"¿Y por qué transformar la luz y el color en una simple lista de números lo cambió absolutamente todo?"},
   {tipo:"linea", hablante:"ANDREA", texto:"Porque lo que se puede contar en números, se puede copiar de forma idéntica sin que se gaste jamás. Es como una receta de cocina: la primera vez la diseñas, pero luego solo la replicas al pie de la letra. Antes, cada copia de una cinta analógica perdía calidad, como la fotocopia de una fotocopia. El mundo digital eliminó esa degradación para siempre: hoy puedes ver una película mil veces y se verá idéntica a la primera."},
@@ -252,7 +156,7 @@ const GUION = [
   {tipo:"linea", hablante:"ILIANA", texto:"¡Por eso pudimos empezar a enviar videos por internet y ver contenidos en alta definición desde cualquier lugar! Pasamos de esperar horas o días descargando un solo archivo a reproducir películas enteras en segundos directamente desde el teléfono."},
   {tipo:"nota", texto:"Clic de control remoto."},
 
-  {tipo:"slide", titulo:"Diapositiva 10 · La cajita", nota:"Cortina musical breve."},
+  {tipo:"slide", titulo:"Diapositiva 10 · La cajita"},
   {tipo:"linea", hablante:"ILIANA", texto:"Y con toda esta tecnología digital llegamos a la televisión que todavía hoy recibimos por el aire, gratis, con una simple antena. La que nos salva la vida cuando se cae la conexión de internet o el cable."},
   {tipo:"linea", hablante:"ANDREA", texto:"Así es: la televisión digital abierta. Pero para que funcionara en los hogares sin obligar a todo el planeta a tirar sus televisores a la basura de golpe, se inventó un intermediario clave: el decodificador, la famosa cajita. Su misión era recibir la señal digital moderna y traducirla en tiempo real al lenguaje analógico que entendía el televisor viejo."},
   {tipo:"linea", hablante:"ILIANA", texto:"¡Un auténtico traductor de bolsillo que todo el mundo tuvo en su sala! Aunque, conociendo la historia, me imagino que los países tampoco se pusieron de acuerdo en un único estándar digital."},
@@ -266,7 +170,7 @@ const GUION = [
   {tipo:"linea", hablante:"ANDREA", texto:"Absolutamente. Dejó de ser un mueble estático en la sala para convertirse en un flujo de información portátil. Ya no estamos atados al horario de las ocho para ver nuestro programa favorito: ahora el contenido nos espera a nosotros, en el bolsillo, en la tableta o donde estemos. Y todo este ecosistema moderno de streaming empezó gracias a los que movían una antena en el techo buscando la mejor señal."},
   {tipo:"nota", texto:"Clic de control remoto."},
 
-  {tipo:"slide", titulo:"Diapositiva 13 · Resumen", nota:"Música suave de fondo."},
+  {tipo:"slide", titulo:"Diapositiva 13 · Resumen"},
   {tipo:"linea", hablante:"ILIANA", texto:"Hagamos un balance final, como los créditos de una buena película."},
   {tipo:"linea", hablante:"ANDREA", texto:"Arrancamos con la televisión analógica y sus perillas, donde cada región creó su estándar incomunicado. Luego el mundo digital convirtió la señal en números inmutables, y la compresión permitió meter ese torrente de datos en memorias portátiles y redes de internet. Finalmente, la televisión aérea se digitalizó con cajitas decodificadoras y múltiples estándares que hoy siguen conviviendo en armonía."},
 
@@ -279,879 +183,384 @@ const GUION = [
   {tipo:"nota", texto:"Sube la cortina musical y se desvanece."}
 ];
 
-/* =========================================================
-   2. MODELO
-   ========================================================= */
+/* 2. CONSTRUCCIÓN DE LA ESTRUCTURA */
 const SECCIONES = [];
-(function construir(){
-  let actual = null, n = 0;
-  GUION.forEach(it => {
-    if (it.tipo === "slide"){
-      actual = { titulo: it.titulo, nota: it.nota || "", items: [] };
-      SECCIONES.push(actual);
-    } else if (actual){
-      if (it.tipo === "linea") actual.items.push({ ...it, id: "L" + (n++) });
-      else actual.items.push({ tipo:"nota", texto: it.texto });
-    }
-  });
-})();
+let lineCount = 0;
+let currentSlide = null;
 
-const TOTAL_LINEAS = SECCIONES.reduce((a,s)=> a + s.items.filter(i=>i.tipo==="linea").length, 0);
-
-/* =========================================================
-   3. RENDER
-   ========================================================= */
-const cont = document.getElementById("guion");
-
-SECCIONES.forEach((sec, si) => {
-  const el = document.createElement("section");
-  el.className = "slide";
-  el.dataset.slide = si;
-
-  const head = document.createElement("div");
-  head.className = "slide-head";
-  head.innerHTML =
-    '<div><span class="slide-tag">' + sec.titulo + '</span>' +
-    (sec.nota ? '<p class="slide-nota">' + sec.nota + '</p>' : '') + '</div>' +
-    '<div class="slide-actions">' +
-      '<span class="slide-status" data-status>0 / 0</span>' +
-      '<button class="btn btn-slide" data-dl disabled>⬇ Audio de la diapositiva</button>' +
-    '</div>';
-  el.appendChild(head);
-
-  const lines = document.createElement("div");
-  lines.className = "lines";
-
-  sec.items.forEach(item => {
-    if (item.tipo === "nota"){
-      const n = document.createElement("div");
-      n.className = "nota";
-      n.textContent = "— " + item.texto + " —";
-      lines.appendChild(n);
-      return;
-    }
-
-    const row = document.createElement("div");
-    row.className = "line line-" + item.hablante.toLowerCase();
-    row.dataset.lineId = item.id;
-    row.innerHTML =
-      '<div class="who">' + item.hablante + '</div>' +
-      '<div class="what">' + item.texto + '</div>' +
-      '<div class="audio-cell">' +
-        '<button type="button" class="btn-rec">⏺ Grabar</button>' +
-        '<button type="button" class="btn-icon play" hidden title="Escuchar">▶</button>' +
-        '<input type="file" accept="audio/*" id="f-' + item.id + '" hidden>' +
-        '<label for="f-' + item.id + '" class="btn-upload" title="O subir archivo de audio">📁</label>' +
-        '<span class="dur"></span>' +
-        '<span class="file-info"></span>' +
-        '<button type="button" class="btn-icon del" hidden title="Quitar audio">✕</button>' +
-      '</div>';
-    lines.appendChild(row);
-  });
-
-  el.appendChild(lines);
-  cont.appendChild(el);
+GUION.forEach(it => {
+  if (it.tipo === "slide"){
+    currentSlide = { titulo: it.titulo, items: [] };
+    SECCIONES.push(currentSlide);
+  } else if (currentSlide){
+    if (it.tipo === "linea") currentSlide.items.push({ ...it, id: "L" + (lineCount++) });
+    else currentSlide.items.push(it);
+  }
 });
 
-/* =========================================================
-   4. ESTADO DE AUDIO Y GRABADORA DIRECTA
-   ========================================================= */
-const AUDIO = new Map();       // id -> {file, name, url, duration}
-let reproductor = null;
-let reproduciendoId = null;
+const TOTAL_LINEAS = lineCount;
+const AUDIO = new Map(); // id -> { blob, duration, url }
+let player = null, playingId = null;
+let mediaRecorder = null, recLineId = null, recStartTime = 0, recTimer = null;
 
-let micStream = null;
-let currentRecorder = null;
-let recordingLineId = null;
-let recTimer = null;
-let recStartTime = 0;
-
-async function getMicStream(){
-  if (micStream && micStream.active) return micStream;
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true }
-    });
-    return micStream;
-  } catch(err){
-    alert("No se pudo acceder al micrófono: " + (err.message || err) + "\nVerifica los permisos de tu navegador.");
-    return null;
-  }
-}
-
-function detenerReproduccion(){
-  if (reproductor){
-    try { reproductor.pause(); } catch(e){}
-    reproductor = null;
-  }
-  if (reproduciendoId){
-    const row = document.querySelector('[data-line-id="' + reproduciendoId + '"]');
-    if (row){
-      const p = row.querySelector(".play");
-      if (p){
-        p.textContent = "▶";
-        p.classList.remove("playing");
-      }
-    }
-    reproduciendoId = null;
-  }
-}
-
-async function iniciarGrabacion(id){
-  const stream = await getMicStream();
-  if (!stream) return;
-
-  const row = document.querySelector('[data-line-id="' + id + '"]');
-  if (!row) return;
-
-  let mimeType = '';
-  if (typeof MediaRecorder !== 'undefined'){
-    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
-    else if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
-    else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
-    else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mimeType = 'audio/ogg;codecs=opus';
-  } else {
-    alert("Tu navegador no soporta MediaRecorder para grabar directamente. Puedes subir archivos usando el botón 📁.");
-    return;
-  }
-
-  const chunks = [];
-  let recorder;
-  try {
-    recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-  } catch(e){
-    recorder = new MediaRecorder(stream);
-  }
-
-  currentRecorder = recorder;
-  recordingLineId = id;
-  recStartTime = Date.now();
-
-  recorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) chunks.push(e.data);
-  };
-
-  recorder.onstop = async () => {
-    if (recTimer) { clearInterval(recTimer); recTimer = null; }
-    const finalId = id;
-    const duracionGrabada = Math.max(0.5, (Date.now() - recStartTime) / 1000);
-    recordingLineId = null;
-    currentRecorder = null;
-
-    const rowActual = document.querySelector('[data-line-id="' + finalId + '"]');
-    if (rowActual) rowActual.classList.remove("recording-now");
-
-    const blobType = recorder.mimeType || 'audio/webm';
-    const blob = new Blob(chunks, { type: blobType });
-    const ext = blobType.includes('ogg') ? 'ogg' : (blobType.includes('mp4') ? 'mp4' : 'webm');
-    const nombre = "toma-" + finalId + "." + ext;
-    await setAudio(finalId, blob, nombre, true, duracionGrabada);
-  };
-
-  recorder.start();
-  row.classList.add("recording-now");
-  const bRec = row.querySelector(".btn-rec");
-  bRec.className = "btn-rec recording";
-  bRec.textContent = "⏹ Detener (0:00)";
-
-  recTimer = setInterval(() => {
-    if (recordingLineId !== id) return;
-    const seg = Math.floor((Date.now() - recStartTime) / 1000);
-    if (bRec) bRec.textContent = "⏹ Detener (" + fmtTime(seg) + ")";
-  }, 250);
-}
-
-function detenerGrabacion(){
-  if (currentRecorder && currentRecorder.state !== 'inactive'){
-    currentRecorder.stop();
-  }
-}
-
-/* ---------- IndexedDB (persistencia) ---------- */
-const DB_NAME = "frecuencia-abierta", STORE = "audios";
-let dbPromise = null;
-
-function openDB(){
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((res, rej) => {
-    const r = indexedDB.open(DB_NAME, 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+/* 3. STORAGE LOCAL (IndexedDB) */
+function getDB(){
+  return new Promise(res => {
+    const r = indexedDB.open("FA_Audios", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("tomas");
     r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
   });
-  return dbPromise;
 }
-function idbPut(key, val){
-  return openDB().then(db => new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put(val, key);
-    tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
-  }));
+async function dbSave(id, blob, dur){
+  const db = await getDB();
+  const tx = db.transaction("tomas", "readwrite");
+  tx.objectStore("tomas").put({ blob, dur }, id);
 }
-function idbDel(key){
-  return openDB().then(db => new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).delete(key);
-    tx.oncomplete = () => res();
-    tx.onerror = () => rej(tx.error);
-  }));
+async function dbDelete(id){
+  const db = await getDB();
+  const tx = db.transaction("tomas", "readwrite");
+  tx.objectStore("tomas").delete(id);
 }
-function idbAll(){
-  return openDB().then(db => new Promise((res, rej) => {
-    const tx = db.transaction(STORE, "readonly");
-    const st = tx.objectStore(STORE);
-    const keysReq = st.getAllKeys();
-    const valsReq = st.getAll();
-    tx.oncomplete = () => res({ keys: keysReq.result, vals: valsReq.result });
-    tx.onerror = () => rej(tx.error);
-  }));
-}
-
-/* ---------- Contexto de audio ---------- */
-let ctx = null;
-function getCtx(){
-  if (ctx) return ctx;
-  const AC = window.AudioContext || window.webkitAudioContext;
-  try { ctx = new AC({ sampleRate: 48000 }); }
-  catch(e){ ctx = new AC(); }
-  return ctx;
-}
-
-/* ---------- Utilidades ---------- */
-function fmtTime(seg){
-  if (!isFinite(seg)) return "";
-  const m = Math.floor(seg / 60), s = Math.round(seg % 60);
-  return m + ":" + String(s).padStart(2, "0");
-}
-function nombreSeguro(txt){
-  return txt.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-function descargar(blob, nombre){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = nombre;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
-}
-
-/* =========================================================
-   5. CARGA DE AUDIO POR LÍNEA
-   ========================================================= */
-async function calcularDuracion(blob, durSugerida = 0){
-  if (durSugerida && durSugerida > 0) return durSugerida;
-  try {
-    return await new Promise((resolve) => {
-      const a = new Audio();
-      const u = URL.createObjectURL(blob);
-      a.preload = "metadata";
-      a.onloadedmetadata = () => { URL.revokeObjectURL(u); resolve(isFinite(a.duration) ? a.duration : 0); };
-      a.onerror = () => { URL.revokeObjectURL(u); resolve(0); };
-      a.src = u;
-      setTimeout(() => { URL.revokeObjectURL(u); resolve(0); }, 1500);
-    });
-  } catch(e){
-    return 0;
-  }
-}
-
-async function setAudio(id, blob, nombre, persistir, durSugerida = 0){
-  const row = document.querySelector('[data-line-id="' + id + '"]');
-  if (!row) return;
-
-  let dur = await calcularDuracion(blob, durSugerida);
-
-  const prev = AUDIO.get(id);
-  if (prev && prev.url) URL.revokeObjectURL(prev.url);
-
-  AUDIO.set(id, { file: blob, name: nombre, url: URL.createObjectURL(blob), duration: dur });
-  pintarFila(id);
-  refrescarContadores();
-
-  if (persistir !== false){
-    try { await idbPut(id, { name: nombre, blob, duration: dur }); }
-    catch(e){ console.warn("No se pudo guardar en el navegador", e); }
-  }
-}
-
-function pintarFila(id){
-  const row = document.querySelector('[data-line-id="' + id + '"]');
-  if (!row) return;
-  const a = AUDIO.get(id);
-  const info = row.querySelector(".file-info");
-  const btnRec = row.querySelector(".btn-rec");
-  const play = row.querySelector(".play");
-  const del  = row.querySelector(".del");
-  const dur  = row.querySelector(".dur");
-
-  if (recordingLineId === id){
-    row.classList.add("recording-now");
-    btnRec.className = "btn-rec recording";
-    play.hidden = true;
-    del.hidden = true;
-    return;
-  }
-
-  row.classList.remove("recording-now");
-  btnRec.className = "btn-rec";
-
-  if (a){
-    row.classList.add("loaded");
-    info.className = "file-info";
-    info.textContent = a.name.length > 14 ? a.name.slice(0, 11) + "…" : a.name;
-    info.title = a.name;
-    dur.textContent = fmtTime(a.duration);
-    btnRec.textContent = "🔄 Regrabar";
-    play.hidden = false;
-    del.hidden = false;
-  } else {
-    row.classList.remove("loaded");
-    info.className = "file-info";
-    info.textContent = "";
-    info.title = "";
-    dur.textContent = "";
-    btnRec.textContent = "⏺ Grabar";
-    play.hidden = true;
-    del.hidden = true;
-  }
-}
-
-/* --- eventos de carga --- */
-document.addEventListener("change", async (e) => {
-  const input = e.target;
-  if (!input.matches('input[type="file"]')) return;
-  const id = input.id.slice(2);
-  const file = input.files && input.files[0];
-  input.value = "";
-  if (!file) return;
-  await setAudio(id, file, file.name, true);
-});
-
-/* --- eventos: grabar / play / borrar --- */
-document.addEventListener("click", async (e) => {
-  const btnRec = e.target.closest(".btn-rec");
-  const play   = e.target.closest(".play");
-  const del    = e.target.closest(".del");
-
-  // Botón de grabar / detener
-  if (btnRec){
-    const row = btnRec.closest("[data-line-id]");
-    const id = row.dataset.lineId;
-    if (recordingLineId === id){
-      detenerGrabacion();
-    } else {
-      if (recordingLineId){
-        detenerGrabacion();
-      }
-      detenerReproduccion();
-      await iniciarGrabacion(id);
-    }
-    return;
-  }
-
-  // Botón de escuchar / pausar
-  if (play){
-    const row = play.closest("[data-line-id]");
-    const id = row.dataset.lineId;
-    const a = AUDIO.get(id);
-    if (!a) return;
-
-    if (reproduciendoId === id){
-      detenerReproduccion();
-      return;
-    }
-
-    detenerReproduccion();
-    if (recordingLineId){ detenerGrabacion(); }
-
-    reproductor = new Audio(a.url);
-    reproduciendoId = id;
-    play.textContent = "⏸";
-    play.classList.add("playing");
-    reproductor.onended = () => { detenerReproduccion(); };
-    reproductor.onerror = () => { detenerReproduccion(); };
-    reproductor.play().catch(() => { detenerReproduccion(); });
-    return;
-  }
-
-  // Botón de quitar / borrar audio
-  if (del){
-    const row = del.closest("[data-line-id]");
-    const id = row.dataset.lineId;
-    detenerReproduccion();
-    if (recordingLineId === id){ detenerGrabacion(); }
-    const a = AUDIO.get(id);
-    if (a && a.url) URL.revokeObjectURL(a.url);
-    AUDIO.delete(id);
-    pintarFila(id);
-    refrescarContadores();
-    idbDel(id).catch(()=>{});
-  }
-});
-
-/* =========================================================
-   6. CONTADORES
-   ========================================================= */
-const statsEl = document.getElementById("stats");
-
-function refrescarContadores(){
-  // por sección
-  document.querySelectorAll(".slide").forEach((el, si) => {
-    const sec = SECCIONES[si];
-    const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
-    const listos = ids.filter(id => AUDIO.has(id)).length;
-    const st = el.querySelector("[data-status]");
-    const btn = el.querySelector("[data-dl]");
-    st.textContent = listos + " / " + ids.length;
-    st.classList.toggle("full", listos === ids.length && ids.length > 0);
-    btn.disabled = listos === 0;
-    btn.textContent = listos === ids.length && ids.length > 0
-      ? "⬇ Descargar diapositiva"
-      : "⬇ Descargar (" + listos + "/" + ids.length + ")";
-  });
-
-  // global
-  const hechas = [...AUDIO.keys()].length;
-  statsEl.textContent = hechas + " de " + TOTAL_LINEAS + " líneas con audio";
-}
-
-/* =========================================================
-   7. EXPORTACIÓN DE AUDIO (WAV)
-   ========================================================= */
-function encodeWAV(int16, canales, sampleRate){
-  const dataSize = int16.length * 2;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-  const ws = (off, str) => { for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i)); };
-
-  ws(0, "RIFF");
-  view.setUint32(4, 36 + dataSize, true);
-  ws(8, "WAVE");
-  ws(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, canales, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * canales * 2, true);
-  view.setUint16(32, canales * 2, true);
-  view.setUint16(34, 16, true);
-  ws(36, "data");
-  view.setUint32(40, dataSize, true);
-  new Int16Array(buffer, 44).set(int16);
-  return new Blob([buffer], { type: "audio/wav" });
-}
-
-const progressEl = document.getElementById("progress");
-const progressBar = document.getElementById("progressBar");
-let exportando = false;
-
-function setProgreso(pct){
-  progressEl.classList.toggle("on", pct !== null);
-  progressBar.style.width = (pct === null ? 0 : pct) + "%";
-}
-
-/**
- * lista: [{ id, gapMs }]
- */
-async function exportarAudio(lista, nombreArchivo, gapPorDefecto){
-  if (exportando) return;
-
-  const conAudio = lista.filter(x => AUDIO.has(x.id));
-  if (conAudio.length === 0){
-    alert("Todavía no hay ningún audio cargado en esta selección.");
-    return;
-  }
-  const faltan = lista.length - conAudio.length;
-  if (faltan > 0 && !confirm("Faltan " + faltan + " línea(s) por cargar.\n¿Descargar de todas formas con lo que hay?")){
-    return;
-  }
-
-  exportando = true;
-  setProgreso(1);
-  bloquearBotones(true);
-
-  try{
-    const contexto = getCtx();
-    const sr = contexto.sampleRate;
-    const piezas = [];
-    let maxCanales = 1;
-    let totalFrames = 0;
-
-    for (let i = 0; i < lista.length; i++){
-      const item = lista[i];
-      const entry = AUDIO.get(item.id);
-      setProgreso(Math.round((i / lista.length) * 85));
-      await new Promise(r => setTimeout(r, 0));
-      if (!entry) continue;
-
-      let buf;
-      try{
-        const ab = await entry.file.arrayBuffer();
-        buf = await contexto.decodeAudioData(ab);
-      } catch(err){
-        console.warn("No se pudo decodificar", item.id, err);
-        continue;
-      }
-
-      const ch = Math.min(2, buf.numberOfChannels) || 1;
-      if (ch > maxCanales) maxCanales = ch;
-
-      const frames = buf.length;
-      const data = new Int16Array(frames * ch);
-      for (let c = 0; c < ch; c++){
-        const src = buf.getChannelData(c);
-        for (let s = 0; s < frames; s++){
-          let v = src[s];
-          if (v > 1) v = 1; else if (v < -1) v = -1;
-          data[s * ch + c] = v < 0 ? v * 0x8000 : v * 0x7FFF;
-        }
-      }
-
-      const gapMs = (item.gapMs != null) ? item.gapMs : gapPorDefecto;
-      const gapFrames = Math.round(sr * gapMs / 1000);
-
-      piezas.push({ data, ch, frames, gapFrames });
-      totalFrames += frames + gapFrames;
-    }
-
-    if (piezas.length === 0){
-      alert("No se pudo procesar ningún audio. Revisa los archivos cargados.");
-      return;
-    }
-
-    setProgreso(90);
-    await new Promise(r => setTimeout(r, 0));
-
-    const salida = new Int16Array(totalFrames * maxCanales);
-    let frameOffset = 0;
-    for (const p of piezas){
-      if (p.ch === maxCanales){
-        salida.set(p.data, frameOffset * maxCanales);
-      } else if (p.ch === 1 && maxCanales === 2){
-        for (let s = 0; s < p.frames; s++){
-          const v = p.data[s];
-          const j = (frameOffset + s) * 2;
-          salida[j] = v;
-          salida[j + 1] = v;
-        }
-      }
-      frameOffset += p.frames + p.gapFrames;
-    }
-
-    setProgreso(97);
-    await new Promise(r => setTimeout(r, 0));
-
-    const wav = encodeWAV(salida, maxCanales, sr);
-    descargar(wav, nombreArchivo);
-
-    setProgreso(100);
-    setTimeout(() => setProgreso(null), 900);
-  } catch(err){
-    console.error(err);
-    alert("Ocurrió un error al unir el audio: " + err.message);
-    setProgreso(null);
-  } finally {
-    exportando = false;
-    bloquearBotones(false);
-  }
-}
-
-function bloquearBotones(estado){
-  document.querySelectorAll(".btn-slide, #btn-episodio").forEach(b => {
-    if (estado) b.disabled = true;
-    else if (b.id === "btn-episodio") b.disabled = false;
-    else refrescarContadores();
+async function dbGetAll(){
+  const db = await getDB();
+  return new Promise(res => {
+    const tx = db.transaction("tomas", "readonly");
+    const st = tx.objectStore("tomas");
+    const k = st.getAllKeys(), v = st.getAll();
+    tx.oncomplete = () => res({ keys: k.result, vals: v.result });
   });
 }
 
-/* --- descarga por diapositiva --- */
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".btn-slide");
-  if (!btn) return;
-  const el = btn.closest(".slide");
-  const si = Number(el.dataset.slide);
-  const sec = SECCIONES[si];
-  const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
-  const lista = ids.map(id => ({ id, gapMs: 220 }));
-  const nombre = "FA-" + String(si + 1).padStart(2, "0") + "-" + nombreSeguro(sec.titulo.replace(/^Diapositiva \d+ · /, "")) + ".wav";
-  exportarAudio(lista, nombre, 220);
-});
-
-/* --- descarga del episodio completo --- */
-document.getElementById("btn-episodio").addEventListener("click", () => {
-  const lista = [];
-  SECCIONES.forEach(sec => {
-    const ids = sec.items.filter(i => i.tipo === "linea").map(i => i.id);
-    ids.forEach((id, k) => {
-      lista.push({ id, gapMs: (k === ids.length - 1) ? 800 : 220 });
-    });
-  });
-  exportarAudio(lista, "Frecuencia-Abierta-De-la-antena-al-streaming.wav", 220);
-});
-
-/* --- borrar todo --- */
-document.getElementById("btn-limpiar").addEventListener("click", async () => {
-  if (!confirm("¿Borrar todos los audios cargados? Esta acción no se puede deshacer.")) return;
-  [...AUDIO.entries()].forEach(([id, a]) => {
-    if (a.url) URL.revokeObjectURL(a.url);
-    pintarFila(id);
-    idbDel(id).catch(()=>{});
-  });
-  AUDIO.clear();
-  refrescarContadores();
-});
-
-/* =========================================================
-   CARGA MASIVA, DRAG & DROP Y EXPORTACIÓN ZIP
-   ========================================================= */
-const toastEl = document.getElementById("toast");
-function mostrarToast(msg, dur = 3500){
-  if (!toastEl) return;
-  toastEl.textContent = msg;
-  toastEl.classList.add("show");
-  setTimeout(() => toastEl.classList.remove("show"), dur);
-}
-
-// Emparejador inteligente de archivos con líneas de guion
-function detectarIdDeArchivo(nombre){
-  const clean = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+/* 4. RENDER */
+const container = document.getElementById("slides-container");
+SECCIONES.forEach((sec, sIdx) => {
+  const card = document.createElement("div");
+  card.className = "slide";
+  card.dataset.slideIndex = sIdx;
   
-  // 1. Patrón directo L0, L1, L02, etc.
-  const m1 = clean.match(/(?:^|[^a-z0-9])l(\d+)(?:[^a-z0-9]|$)/);
-  if (m1) {
-    const id = "L" + parseInt(m1[1], 10);
-    if (document.querySelector('[data-line-id="' + id + '"]')) return id;
-  }
-
-  // 2. Patrón de diapositiva y hablante: ej. "d1-andrea", "slide2_iliana"
-  const mSlide = clean.match(/(?:diapositiva|slide|d)[\s_-]*(\d+)/);
-  if (mSlide){
-    const sIndex = parseInt(mSlide[1], 10) - 1;
-    if (SECCIONES[sIndex]){
-      let hablante = "";
-      if (clean.includes("andrea")) hablante = "ANDREA";
-      else if (clean.includes("iliana")) hablante = "ILIANA";
-      else if (clean.includes("ambas")) hablante = "AMBAS";
-
-      const items = SECCIONES[sIndex].items.filter(i => i.tipo === "linea");
-      if (hablante){
-        const match = items.find(i => i.hablante === hablante);
-        if (match) return match.id;
-      }
-      if (items.length === 1) return items[0].id;
+  let linesHtml = "";
+  sec.items.forEach(it => {
+    if (it.tipo === "nota"){
+      linesHtml += `<div class="nota">— ${it.texto} —</div>`;
+      return;
     }
-  }
+    linesHtml += `
+      <div class="line" data-id="${it.id}">
+        <div class="who ${it.hablante.toLowerCase()}">${it.hablante}</div>
+        <div class="text">${it.texto}</div>
+        <div class="controls">
+          <button class="btn-rec" data-rec="${it.id}">⏺ Grabar</button>
+          <button class="btn-circle play" data-play="${it.id}" style="display:none">▶</button>
+          <span class="dur"></span>
+          <button class="btn-circle del" data-del="${it.id}" style="display:none" title="Eliminar">✕</button>
+        </div>
+      </div>
+    `;
+  });
 
-  // 3. Patrón simple "toma-1", "audio-1"
-  const mNum = clean.match(/(?:toma|audio|voz|track)[\s_-]*(\d+)/);
-  if (mNum){
-    const id = "L" + parseInt(mNum[1], 10);
-    if (document.querySelector('[data-line-id="' + id + '"]')) return id;
-  }
+  card.innerHTML = `
+    <div class="slide-header">
+      <span>${sec.titulo}</span>
+      <span class="status" data-slide-status>0 / ${sec.items.filter(i=>i.tipo==="linea").length}</span>
+    </div>
+    ${linesHtml}
+  `;
+  container.appendChild(card);
+});
 
-  return null;
+/* 5. GESTIÓN DE AUDIO */
+function formatTime(s){
+  if (!isFinite(s) || s <= 0) return "";
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-// Procesar lista de archivos (Files o Blobs descomprimidos)
-async function procesarArchivos(fileList){
-  let cargados = 0;
-  const noReconocidos = [];
+async function setAudio(id, blob, dur, save = true){
+  const row = document.querySelector(`[data-id="${id}"]`);
+  if (!row) return;
 
-  for (const file of fileList){
-    const name = file.name;
-    // Si es un archivo .zip, descomprimir con JSZip
-    if (name.toLowerCase().endsWith(".zip")){
-      if (typeof JSZip === "undefined"){
-        alert("La librería JSZip no está disponible para descomprimir.");
-        continue;
-      }
-      try {
-        const zip = await JSZip.loadAsync(file);
-        const zipFiles = [];
-        zip.forEach((relPath, zipEntry) => {
-          if (!zipEntry.dir && !relPath.startsWith("__MACOSX") && !relPath.endsWith(".json") && !relPath.endsWith(".md")){
-            zipFiles.push(zipEntry);
-          }
-        });
-        for (const ze of zipFiles){
-          const blob = await ze.async("blob");
-          const fname = ze.name.split("/").pop();
-          const targetId = detectarIdDeArchivo(fname);
-          if (targetId){
-            await setAudio(targetId, blob, fname, true);
-            cargados++;
-          } else {
-            noReconocidos.push(fname);
-          }
-        }
-      } catch(e){
-        console.error("Error al leer zip:", e);
-        alert("No se pudo leer el archivo ZIP: " + e.message);
-      }
-      continue;
-    }
+  const url = URL.createObjectURL(blob);
+  AUDIO.set(id, { blob, dur, url });
 
-    // Si es un archivo de audio directo
-    const targetId = detectarIdDeArchivo(name);
-    if (targetId){
-      await setAudio(targetId, file, name, true);
-      cargados++;
-    } else {
-      noReconocidos.push(name);
-    }
-  }
+  row.classList.add("has-audio");
+  row.querySelector(".btn-rec").textContent = "🔄 Regrabar";
+  row.querySelector(".play").style.display = "inline-flex";
+  row.querySelector(".del").style.display = "inline-flex";
+  row.querySelector(".dur").textContent = formatTime(dur);
 
-  if (cargados > 0){
-    mostrarToast("✅ " + cargados + " audio(s) cargados y sincronizados correctamente.");
-  }
-  if (noReconocidos.length > 0){
-    alert("Se cargaron " + cargados + " audios.\n\nLos siguientes archivos no se pudieron asociar a una línea (asegúrate de que tengan 'L0', 'L1', etc.):\n• " + noReconocidos.slice(0, 10).join("\n• ") + (noReconocidos.length > 10 ? "\n... y " + (noReconocidos.length - 10) + " más" : ""));
-  }
+  if (save) await dbSave(id, blob, dur);
+  updateStats();
 }
 
-// Drag & Drop
-const dropOverlay = document.getElementById("dropOverlay");
-let dragCounter = 0;
+function removeAudio(id){
+  const row = document.querySelector(`[data-id="${id}"]`);
+  if (!row) return;
+  if (playingId === id) stopPlay();
+  
+  const a = AUDIO.get(id);
+  if (a) URL.revokeObjectURL(a.url);
+  AUDIO.delete(id);
 
-window.addEventListener("dragenter", (e) => {
-  e.preventDefault();
-  dragCounter++;
-  if (dropOverlay) dropOverlay.classList.add("active");
-});
-window.addEventListener("dragleave", (e) => {
-  e.preventDefault();
-  dragCounter--;
-  if (dragCounter <= 0 && dropOverlay){
-    dropOverlay.classList.remove("active");
-    dragCounter = 0;
-  }
-});
-window.addEventListener("dragover", (e) => {
-  e.preventDefault();
-});
-window.addEventListener("drop", async (e) => {
-  e.preventDefault();
-  dragCounter = 0;
-  if (dropOverlay) dropOverlay.classList.remove("active");
-  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0){
-    await procesarArchivos(Array.from(e.dataTransfer.files));
-  }
-});
+  row.classList.remove("has-audio");
+  row.querySelector(".btn-rec").textContent = "⏺ Grabar";
+  row.querySelector(".play").style.display = "none";
+  row.querySelector(".del").style.display = "none";
+  row.querySelector(".dur").textContent = "";
 
-// Botón de Cargar varios audios
-const inputMultiple = document.getElementById("input-multiple");
-const btnImportar = document.getElementById("btn-importar");
-if (btnImportar && inputMultiple){
-  btnImportar.addEventListener("click", () => inputMultiple.click());
-  inputMultiple.addEventListener("change", async () => {
-    if (inputMultiple.files && inputMultiple.files.length > 0){
-      await procesarArchivos(Array.from(inputMultiple.files));
-      inputMultiple.value = "";
-    }
+  dbDelete(id);
+  updateStats();
+}
+
+function updateStats(){
+  document.getElementById("global-stats").textContent = `${AUDIO.size} de ${TOTAL_LINEAS} audios listos`;
+  SECCIONES.forEach((sec, idx) => {
+    const card = document.querySelector(`[data-slide-index="${idx}"]`);
+    const total = sec.items.filter(i => i.tipo === "linea").length;
+    const ready = sec.items.filter(i => i.tipo === "linea" && AUDIO.has(i.id)).length;
+    const st = card.querySelector("[data-slide-status]");
+    st.textContent = `${ready} / ${total}`;
+    st.classList.toggle("done", ready === total && total > 0);
   });
 }
 
-// Botón de Exportar paquete .zip con manifest
-const btnExportarZip = document.getElementById("btn-exportar-zip");
-if (btnExportarZip){
-  btnExportarZip.addEventListener("click", async () => {
-    if (AUDIO.size === 0){
-      alert("No hay ningún audio cargado todavía para exportar.");
-      return;
-    }
-    if (typeof JSZip === "undefined"){
-      alert("No se pudo cargar JSZip para empaquetar.");
-      return;
-    }
-
-    btnExportarZip.disabled = true;
-    btnExportarZip.textContent = "⏳ Empaquetando...";
-    try {
-      const zip = new JSZip();
-      const folder = zip.folder("audios");
-      const manifest = {};
-
-      for (const [id, a] of AUDIO.entries()){
-        const ext = a.name.includes(".") ? a.name.split(".").pop() : "webm";
-        const sec = SECCIONES.find(s => s.items.some(it => it.id === id));
-        const item = sec ? sec.items.find(it => it.id === id) : null;
-        const hablante = item ? item.hablante : "VOZ";
-        const filename = id + "-" + hablante + "." + ext;
-        
-        folder.file(filename, a.file);
-        manifest[id] = "audios/" + filename;
-      }
-
-      folder.file("manifest.json", JSON.stringify(manifest, null, 2));
-
-      const blobZip = await zip.generateAsync({ type: "blob" });
-      descargar(blobZip, "frecuencia-abierta-audios-paquete.zip");
-      mostrarToast("📦 Paquete .zip descargado con éxito.");
-    } catch(err){
-      console.error(err);
-      alert("Error al crear el paquete zip: " + err.message);
-    } finally {
-      btnExportarZip.disabled = false;
-      btnExportarZip.textContent = "📦 Descargar paquete (.zip)";
-    }
-  });
-}
-
-// Carga automática desde audios oficiales en GitHub
-async function cargarAudiosDesdeServidor(){
+/* 6. GRABACIÓN */
+async function startRecording(id){
   try {
-    const res = await fetch("audios/manifest.json?t=" + Date.now());
-    if (!res.ok) return;
-    const manifest = await res.json();
-    if (!manifest || typeof manifest !== "object") return;
-    const entries = Object.entries(manifest);
-    if (entries.length === 0) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    recLineId = id;
+    recStartTime = Date.now();
+    const chunks = [];
 
-    let nuevos = 0;
-    for (const [id, path] of entries){
-      if (!AUDIO.has(id)){
-        try {
-          const fileRes = await fetch(path + "?t=" + Date.now());
-          if (fileRes.ok){
-            const blob = await fileRes.blob();
-            const fname = path.split("/").pop();
-            await setAudio(id, blob, fname, false);
-            nuevos++;
-          }
-        } catch(e){}
-      }
-    }
-    if (nuevos > 0) refrescarContadores();
-  } catch(e){
-    // Sin manifest o sin conexión
+    const row = document.querySelector(`[data-id="${id}"]`);
+    const btn = row.querySelector(".btn-rec");
+    btn.classList.add("recording");
+    btn.textContent = "⏹ Detener (0:00)";
+
+    recTimer = setInterval(() => {
+      const elapsed = (Date.now() - recStartTime) / 1000;
+      btn.textContent = `⏹ Detener (${formatTime(elapsed)})`;
+    }, 250);
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      clearInterval(recTimer);
+      const dur = Math.max(0.5, (Date.now() - recStartTime) / 1000);
+      btn.classList.remove("recording");
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      stream.getTracks().forEach(t => t.stop());
+      mediaRecorder = null;
+      recLineId = null;
+      await setAudio(id, blob, dur, true);
+    };
+
+    mediaRecorder.start();
+  } catch(err){
+    alert("No se pudo acceder al micrófono. Revisa los permisos de tu navegador.");
   }
 }
 
-/* =========================================================
-   8. RESTAURAR AL CARGAR LA PÁGINA
-   ========================================================= */
-(async function restaurar(){
-  refrescarContadores();
-  try{
-    // 1. Restaurar del almacenamiento local del navegador
-    const { keys, vals } = await idbAll();
-    for (let i = 0; i < keys.length; i++){
-      const v = vals[i];
-      if (!v || !v.blob) continue;
-      if (!document.querySelector('[data-line-id="' + keys[i] + '"]')) continue;
-      await setAudio(keys[i], v.blob, v.name || "audio", false, v.duration || 0);
-    }
-  } catch(e){
-    console.warn("No se pudo restaurar el audio guardado:", e);
+function stopRecording(){
+  if (mediaRecorder && mediaRecorder.state !== "inactive"){
+    mediaRecorder.stop();
   }
-  refrescarContadores();
+}
 
-  // 2. Sincronizar automáticamente audios subidos al repositorio en GitHub
-  await cargarAudiosDesdeServidor();
+/* 7. REPRODUCCIÓN */
+function stopPlay(){
+  if (player){ player.pause(); player = null; }
+  if (playingId){
+    const row = document.querySelector(`[data-id="${playingId}"]`);
+    if (row) row.querySelector(".play").textContent = "▶";
+    playingId = null;
+  }
+}
+
+function playAudio(id){
+  if (playingId === id){ stopPlay(); return; }
+  stopPlay();
+  const a = AUDIO.get(id);
+  if (!a) return;
+
+  player = new Audio(a.url);
+  playingId = id;
+  const row = document.querySelector(`[data-id="${id}"]`);
+  row.querySelector(".play").textContent = "⏸";
+
+  player.onended = stopPlay;
+  player.onerror = stopPlay;
+  player.play().catch(stopPlay);
+}
+
+/* 8. EVENTOS */
+document.addEventListener("click", e => {
+  const rec = e.target.closest("[data-rec]");
+  const play = e.target.closest("[data-play]");
+  const del = e.target.closest("[data-del]");
+
+  if (rec){
+    const id = rec.dataset.rec;
+    if (recLineId === id) stopRecording();
+    else {
+      if (recLineId) stopRecording();
+      stopPlay();
+      startRecording(id);
+    }
+  } else if (play){
+    playAudio(play.dataset.play);
+  } else if (del){
+    removeAudio(del.dataset.del);
+  }
+});
+
+/* 9. CARGAR ARCHIVOS Y ZIP (Arrastrar y Soltar) */
+async function loadFiles(files){
+  let loaded = 0;
+  for (const f of files){
+    if (f.name.toLowerCase().endsWith(".zip")){
+      const zip = await JSZip.loadAsync(f);
+      for (const [path, entry] of Object.entries(zip.files)){
+        if (entry.dir) continue;
+        const fname = path.split("/").pop();
+        const m = fname.match(/(?:^|[^a-z0-9])L(\d+)(?:[^a-z0-9]|$)/i);
+        if (m){
+          const id = "L" + m[1];
+          const blob = await entry.async("blob");
+          const dur = await getBlobDuration(blob);
+          await setAudio(id, blob, dur, true);
+          loaded++;
+        }
+      }
+    } else {
+      const m = f.name.match(/(?:^|[^a-z0-9])L(\d+)(?:[^a-z0-9]|$)/i);
+      if (m){
+        const id = "L" + m[1];
+        const dur = await getBlobDuration(f);
+        await setAudio(id, f, dur, true);
+        loaded++;
+      }
+    }
+  }
+  if (loaded > 0) alert(`✅ Se cargaron ${loaded} audios correctamente.`);
+  else alert("No se reconocieron los nombres de los archivos. Deben llamarse L0, L1, L2, etc.");
+}
+
+function getBlobDuration(blob){
+  return new Promise(res => {
+    const a = new Audio(URL.createObjectURL(blob));
+    a.onloadedmetadata = () => res(a.duration || 1);
+    a.onerror = () => res(1);
+    setTimeout(() => res(1), 1000);
+  });
+}
+
+document.getElementById("file-input").addEventListener("change", e => {
+  if (e.target.files.length) loadFiles(Array.from(e.target.files));
+});
+
+const dropZone = document.getElementById("drop-zone");
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  if (e.dataTransfer.files.length) loadFiles(Array.from(e.dataTransfer.files));
+});
+
+/* 10. EXPORTAR ZIP (Para compartir con Andrea) */
+document.getElementById("btn-zip").addEventListener("click", async () => {
+  if (AUDIO.size === 0) return alert("Aún no tienes audios grabados.");
+  const zip = new JSZip();
+  for (const [id, a] of AUDIO.entries()){
+    const item = GUION.find(g => g.id === id) || {};
+    const name = `${id}_${item.hablante || 'VOZ'}.webm`;
+    zip.file(name, a.blob);
+  }
+  const content = await zip.generateAsync({ type: "blob" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(content);
+  link.download = "audios_frecuencia_abierta.zip";
+  link.click();
+});
+
+/* 11. EXPORTAR WAV MASTERIZADO */
+document.getElementById("btn-wav").addEventListener("click", async () => {
+  if (AUDIO.size === 0) return alert("No hay audios cargados para generar el episodio.");
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  const pieces = [];
+  let maxChannels = 1;
+
+  for (let i = 0; i < TOTAL_LINEAS; i++){
+    const id = "L" + i;
+    const a = AUDIO.get(id);
+    if (!a) continue;
+    try {
+      const buf = await ctx.decodeAudioData(await a.blob.arrayBuffer());
+      pieces.push(buf);
+      if (buf.numberOfChannels > maxChannels) maxChannels = buf.numberOfChannels;
+    } catch(e){}
+  }
+
+  if (!pieces.length) return alert("No se pudo procesar el audio.");
+
+  const gapFrames = Math.round(ctx.sampleRate * 0.25);
+  let totalLength = pieces.reduce((acc, p) => acc + p.length + gapFrames, 0);
+  const outBuf = ctx.createBuffer(maxChannels, totalLength, ctx.sampleRate);
+
+  let offset = 0;
+  pieces.forEach(p => {
+    for (let c = 0; c < maxChannels; c++){
+      const src = p.getChannelData(Math.min(c, p.numberOfChannels - 1));
+      outBuf.getChannelData(c).set(src, offset);
+    }
+    offset += p.length + gapFrames;
+  });
+
+  // Convertir a WAV
+  const dataLen = outBuf.length * maxChannels * 2;
+  const buffer = new ArrayBuffer(44 + dataLen);
+  const view = new DataView(buffer);
+  const writeStr = (off, s) => { for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
+  
+  writeStr(0, "RIFF"); view.setUint32(4, 36 + dataLen, true); writeStr(8, "WAVE"); writeStr(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, maxChannels, true);
+  view.setUint32(24, ctx.sampleRate, true); view.setUint32(28, ctx.sampleRate * maxChannels * 2, true);
+  view.setUint16(32, maxChannels * 2, true); view.setUint16(34, 16, true); writeStr(36, "data");
+  view.setUint32(40, dataLen, true);
+
+  let pcmOff = 44;
+  for (let i = 0; i < outBuf.length; i++){
+    for (let c = 0; c < maxChannels; c++){
+      let sample = Math.max(-1, Math.min(1, outBuf.getChannelData(c)[i]));
+      view.setInt16(pcmOff, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      pcmOff += 2;
+    }
+  }
+
+  const blob = new Blob([buffer], { type: "audio/wav" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "Episodio_Completo_Frecuencia_Abierta.wav";
+  link.click();
+});
+
+/* 12. BORRAR TODO */
+document.getElementById("btn-clear").addEventListener("click", () => {
+  if (confirm("¿Borrar todos los audios locales?")){
+    indexedDB.deleteDatabase("FA_Audios");
+    location.reload();
+  }
+});
+
+/* 13. RESTAURAR LOCAL AL ENTRAR */
+(async function init(){
+  const { keys, vals } = await dbGetAll();
+  for (let i = 0; i < keys.length; i++){
+    if (vals[i] && vals[i].blob){
+      await setAudio(keys[i], vals[i].blob, vals[i].dur || 1, false);
+    }
+  }
 })();
 </script>
 </body>
