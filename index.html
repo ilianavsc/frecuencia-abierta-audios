@@ -434,6 +434,7 @@ async function iniciarGrabacion(id){
   recorder.onstop = async () => {
     if (recTimer) { clearInterval(recTimer); recTimer = null; }
     const finalId = id;
+    const duracionGrabada = Math.max(0.5, (Date.now() - recStartTime) / 1000);
     recordingLineId = null;
     currentRecorder = null;
 
@@ -443,12 +444,11 @@ async function iniciarGrabacion(id){
     const blobType = recorder.mimeType || 'audio/webm';
     const blob = new Blob(chunks, { type: blobType });
     const ext = blobType.includes('ogg') ? 'ogg' : (blobType.includes('mp4') ? 'mp4' : 'webm');
-    const sec = SECCIONES.find(s => s.items.some(it => it.id === finalId));
     const nombre = "toma-" + finalId + "." + ext;
-    await setAudio(finalId, blob, nombre, true);
+    await setAudio(finalId, blob, nombre, true, duracionGrabada);
   };
 
-  recorder.start(100);
+  recorder.start();
   row.classList.add("recording-now");
   const bRec = row.querySelector(".btn-rec");
   bRec.className = "btn-rec recording";
@@ -542,21 +542,28 @@ function descargar(blob, nombre){
 /* =========================================================
    5. CARGA DE AUDIO POR LÍNEA
    ========================================================= */
-async function setAudio(id, blob, nombre, persistir){
+async function calcularDuracion(blob, durSugerida = 0){
+  if (durSugerida && durSugerida > 0) return durSugerida;
+  try {
+    return await new Promise((resolve) => {
+      const a = new Audio();
+      const u = URL.createObjectURL(blob);
+      a.preload = "metadata";
+      a.onloadedmetadata = () => { URL.revokeObjectURL(u); resolve(isFinite(a.duration) ? a.duration : 0); };
+      a.onerror = () => { URL.revokeObjectURL(u); resolve(0); };
+      a.src = u;
+      setTimeout(() => { URL.revokeObjectURL(u); resolve(0); }, 1500);
+    });
+  } catch(e){
+    return 0;
+  }
+}
+
+async function setAudio(id, blob, nombre, persistir, durSugerida = 0){
   const row = document.querySelector('[data-line-id="' + id + '"]');
   if (!row) return;
 
-  let dur = 0;
-  try {
-    const ab = await blob.arrayBuffer();
-    const buf = await getCtx().decodeAudioData(ab);
-    dur = buf.duration;
-  } catch(e){
-    const info = row.querySelector(".file-info");
-    info.className = "err";
-    info.textContent = "No se pudo leer este audio";
-    return;
-  }
+  let dur = await calcularDuracion(blob, durSugerida);
 
   const prev = AUDIO.get(id);
   if (prev && prev.url) URL.revokeObjectURL(prev.url);
@@ -566,7 +573,7 @@ async function setAudio(id, blob, nombre, persistir){
   refrescarContadores();
 
   if (persistir !== false){
-    try { await idbPut(id, { name: nombre, blob }); }
+    try { await idbPut(id, { name: nombre, blob, duration: dur }); }
     catch(e){ console.warn("No se pudo guardar en el navegador", e); }
   }
 }
@@ -1097,57 +1104,31 @@ if (btnExportarZip){
 // Carga automática desde audios oficiales en GitHub
 async function cargarAudiosDesdeServidor(){
   try {
-    // 1. Probar manifest.json
     const res = await fetch("audios/manifest.json?t=" + Date.now());
-    if (res.ok){
-      const manifest = await res.json();
-      let nuevos = 0;
-      for (const [id, path] of Object.entries(manifest)){
-        if (!AUDIO.has(id)){
-          try {
-            const fileRes = await fetch(path + "?t=" + Date.now());
-            if (fileRes.ok){
-              const blob = await fileRes.blob();
-              const fname = path.split("/").pop();
-              await setAudio(id, blob, fname, true);
-              nuevos++;
-            }
-          } catch(e){}
-        }
-      }
-      if (nuevos > 0) refrescarContadores();
-    }
-  } catch(e){
-    // Servidor sin manifest aún
-  }
+    if (!res.ok) return;
+    const manifest = await res.json();
+    if (!manifest || typeof manifest !== "object") return;
+    const entries = Object.entries(manifest);
+    if (entries.length === 0) return;
 
-  // 2. Comprobación directa para líneas faltantes (L0.webm, L0.mp3, etc.)
-  const faltantes = [];
-  SECCIONES.forEach(sec => {
-    sec.items.filter(it => it.tipo === "linea").forEach(it => {
-      if (!AUDIO.has(it.id)) faltantes.push(it.id);
-    });
-  });
-
-  const formatos = ["webm", "mp3", "wav", "ogg"];
-  for (const id of faltantes){
-    for (const ext of formatos){
-      if (AUDIO.has(id)) break;
-      try {
-        const testUrl = "audios/" + id + "." + ext;
-        const r = await fetch(testUrl, { method: "HEAD" });
-        if (r.ok){
-          const getR = await fetch(testUrl);
-          if (getR.ok){
-            const blob = await getR.blob();
-            await setAudio(id, blob, id + "." + ext, true);
-            break;
+    let nuevos = 0;
+    for (const [id, path] of entries){
+      if (!AUDIO.has(id)){
+        try {
+          const fileRes = await fetch(path + "?t=" + Date.now());
+          if (fileRes.ok){
+            const blob = await fileRes.blob();
+            const fname = path.split("/").pop();
+            await setAudio(id, blob, fname, false);
+            nuevos++;
           }
-        }
-      } catch(e){}
+        } catch(e){}
+      }
     }
+    if (nuevos > 0) refrescarContadores();
+  } catch(e){
+    // Sin manifest o sin conexión
   }
-  refrescarContadores();
 }
 
 /* =========================================================
@@ -1162,7 +1143,7 @@ async function cargarAudiosDesdeServidor(){
       const v = vals[i];
       if (!v || !v.blob) continue;
       if (!document.querySelector('[data-line-id="' + keys[i] + '"]')) continue;
-      await setAudio(keys[i], v.blob, v.name || "audio", false);
+      await setAudio(keys[i], v.blob, v.name || "audio", false, v.duration || 0);
     }
   } catch(e){
     console.warn("No se pudo restaurar el audio guardado:", e);
