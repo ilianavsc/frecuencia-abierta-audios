@@ -413,58 +413,139 @@ document.addEventListener("click", e => {
   }
 });
 
-/* 9. CARGAR ARCHIVOS Y ZIP (Arrastrar y Soltar) */
-async function loadFiles(files){
-  let loaded = 0;
-  for (const f of files){
-    if (f.name.toLowerCase().endsWith(".zip")){
-      const zip = await JSZip.loadAsync(f);
-      for (const [path, entry] of Object.entries(zip.files)){
-        if (entry.dir) continue;
-        const fname = path.split("/").pop();
-        const m = fname.match(/(?:^|[^a-z0-9])L(\d+)(?:[^a-z0-9]|$)/i);
-        if (m){
-          const id = "L" + m[1];
-          const blob = await entry.async("blob");
-          const dur = await getBlobDuration(blob);
-          await setAudio(id, blob, dur, true);
-          loaded++;
-        }
+/* 9. IDENTIFICADOR FLEXIBLE DE LÍNEA */
+function identifyLineId(filename){
+  const clean = filename.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  // 1. Busca L0, L1, L02, L-0, L_12, etc.
+  const mL = clean.match(/(?:^|[^a-z0-9])l[-_\s]*(\d+)(?:[^a-z0-9]|$)/);
+  if (mL){
+    const id = "L" + parseInt(mL[1], 10);
+    if (document.querySelector(`[data-id="${id}"]`)) return id;
+  }
+
+  // 2. Busca por diapositiva y personaje: ej. "diapositiva 1 andrea", "d2_iliana"
+  const mSlide = clean.match(/(?:diapositiva|slide|d)[-_\s]*(\d+)/);
+  if (mSlide){
+    const sIdx = parseInt(mSlide[1], 10) - 1;
+    if (SECCIONES[sIdx]){
+      const lines = SECCIONES[sIdx].items.filter(i => i.tipo === "linea");
+      let who = "";
+      if (clean.includes("andrea")) who = "ANDREA";
+      else if (clean.includes("iliana")) who = "ILIANA";
+      else if (clean.includes("ambas")) who = "AMBAS";
+
+      if (who){
+        const match = lines.find(i => i.hablante === who);
+        if (match) return match.id;
       }
-    } else {
-      const m = f.name.match(/(?:^|[^a-z0-9])L(\d+)(?:[^a-z0-9]|$)/i);
-      if (m){
-        const id = "L" + m[1];
-        const dur = await getBlobDuration(f);
-        await setAudio(id, f, dur, true);
-        loaded++;
-      }
+      if (lines.length === 1) return lines[0].id;
     }
   }
-  if (loaded > 0) alert(`✅ Se cargaron ${loaded} audios correctamente.`);
-  else alert("No se reconocieron los nombres de los archivos. Deben llamarse L0, L1, L2, etc.");
+
+  // 3. Busca números solos: ej. "toma 0", "audio 5"
+  const mNum = clean.match(/(?:toma|audio|voz|track)[-_\s]*(\d+)/);
+  if (mNum){
+    const id = "L" + parseInt(mNum[1], 10);
+    if (document.querySelector(`[data-id="${id}"]`)) return id;
+  }
+
+  return null;
 }
 
 function getBlobDuration(blob){
   return new Promise(res => {
-    const a = new Audio(URL.createObjectURL(blob));
-    a.onloadedmetadata = () => res(a.duration || 1);
-    a.onerror = () => res(1);
-    setTimeout(() => res(1), 1000);
+    try {
+      const u = URL.createObjectURL(blob);
+      const a = new Audio();
+      a.preload = "metadata";
+      a.onloadedmetadata = () => { URL.revokeObjectURL(u); res(isFinite(a.duration) ? a.duration : 1); };
+      a.onerror = () => { URL.revokeObjectURL(u); res(1); };
+      a.src = u;
+      setTimeout(() => { URL.revokeObjectURL(u); res(1); }, 1500);
+    } catch(e){
+      res(1);
+    }
   });
 }
 
-document.getElementById("file-input").addEventListener("change", e => {
-  if (e.target.files.length) loadFiles(Array.from(e.target.files));
+/* CARGAR ARCHIVOS Y ZIP */
+async function loadFiles(fileList){
+  const files = Array.from(fileList);
+  if (!files.length) return;
+
+  let loaded = 0;
+  const unrecognized = [];
+
+  for (const f of files){
+    const isZip = f.name.toLowerCase().endsWith(".zip") || f.type.includes("zip");
+
+    if (isZip){
+      try {
+        const zip = await JSZip.loadAsync(f);
+        const entries = Object.values(zip.files).filter(e => !e.dir && !e.name.startsWith("__MACOSX") && !e.name.startsWith("."));
+        for (const entry of entries){
+          const fname = entry.name.split("/").pop();
+          const id = identifyLineId(fname);
+          if (id){
+            const blob = await entry.async("blob");
+            const dur = await getBlobDuration(blob);
+            await setAudio(id, blob, dur, true);
+            loaded++;
+          } else if (fname && !fname.endsWith(".json") && !fname.endsWith(".txt")) {
+            unrecognized.push(fname);
+          }
+        }
+      } catch(err){
+        console.error(err);
+        alert("Error al leer el archivo ZIP: " + err.message);
+      }
+    } else {
+      const id = identifyLineId(f.name);
+      if (id){
+        const dur = await getBlobDuration(f);
+        await setAudio(id, f, dur, true);
+        loaded++;
+      } else {
+        unrecognized.push(f.name);
+      }
+    }
+  }
+
+  if (loaded > 0){
+    alert(`🎉 ¡Éxito! Se cargaron y sincronizaron ${loaded} audios en sus casillas.`);
+  } else {
+    alert("No se pudo reconocer a qué línea corresponden los archivos.\n\nAsegúrate de que los archivos contengan en su nombre 'L0', 'L1', 'L2', etc.");
+  }
+}
+
+// Evento selector de archivos
+const fileInput = document.getElementById("file-input");
+fileInput.addEventListener("change", async e => {
+  if (e.target.files && e.target.files.length){
+    await loadFiles(e.target.files);
+    e.target.value = "";
+  }
 });
 
+// Eventos Drag & Drop en toda la ventana y en la zona dedicada
 const dropZone = document.getElementById("drop-zone");
-dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
-dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
-dropZone.addEventListener("drop", e => {
+
+window.addEventListener("dragover", e => {
   e.preventDefault();
-  dropZone.classList.remove("dragover");
-  if (e.dataTransfer.files.length) loadFiles(Array.from(e.dataTransfer.files));
+  if (dropZone) dropZone.classList.add("dragover");
+});
+window.addEventListener("dragleave", e => {
+  if (e.clientX <= 0 || e.clientY <= 0) {
+    if (dropZone) dropZone.classList.remove("dragover");
+  }
+});
+window.addEventListener("drop", async e => {
+  e.preventDefault();
+  if (dropZone) dropZone.classList.remove("dragover");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+    await loadFiles(e.dataTransfer.files);
+  }
 });
 
 /* 10. EXPORTAR ZIP (Para compartir con Andrea) */
